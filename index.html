@@ -294,7 +294,7 @@ function readInputs() {
   const auto = autoRmdAge(birthYear);
   return {
     birthYear, startYear: thisYear,
-    endAge: Math.min(120, Math.round(num('endAge', 100))),
+    endAge: Math.max(thisYear - birthYear, Math.min(120, Math.round(num('endAge', 100)))),
     balance: Math.max(0, num('balance', 0)),
     rate: Math.max(-99, num('rate', 0)),
     draw: Math.max(0, num('draw', 0)),
