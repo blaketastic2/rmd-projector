@@ -327,8 +327,8 @@ function render() {
   const already = first && first.age > p.rmdAge;
   const tiles = [
     { k: 'RMDs begin', v: first ? (already ? 'Now' : `Age ${p.rmdAge}`) : '—', s: first ? (already ? `Already past age ${p.rmdAge}` : `Tax year ${p.birthYear + p.rmdAge}`) : 'Not reached in this projection' },
-    { k: 'Balance at RMD start', v: first ? usd(first.start) : '—', s: first ? `Jan 1, ${first.year}` : '' },
-    { k: 'First RMD', v: first ? usd(first.rmd) : '—', s: first ? `${usd(first.start)} ÷ ${first.div.toFixed(1)}` : '', cls: 'rmd' },
+    { k: already ? 'Balance today' : 'Balance at RMD start', v: first ? usd(first.start) : '—', s: first ? `Jan 1, ${first.year}` : '' },
+    { k: already ? `RMD for ${first.year}` : 'First RMD', v: first ? usd(first.rmd) : '—', s: first ? `${usd(first.start)} ÷ ${first.div.toFixed(1)}` : '', cls: 'rmd' },
     { k: 'Largest RMD', v: peak ? usd(peak.rmd) : '—', s: peak ? `Age ${peak.age} (${peak.year})` : '', cls: 'rmd' },
     { k: p.afterRmd === 'greater' ? 'RMD exceeds plan' : 'RMD vs. plan', v: overtake ? `Age ${overtake.age}` : (first ? 'Never' : '—'),
       s: overtake ? `${usd(totalForced)} more than planned overall` : (first ? 'Planned amount always covers it' : '') , cls: overtake ? 'rmd' : '' },
@@ -338,7 +338,7 @@ function render() {
 
   // Table
   const head = '<thead><tr><th>Year</th><th>Age</th><th>Jan 1 balance</th><th>Factor</th><th>RMD</th><th>Planned</th><th>Withdrawn</th><th>Growth</th><th>Dec 31 balance</th></tr></thead>';
-  const body = rows.map(x => `<tr class="${x.forced > 0.5 ? 'forced' : ''} ${x === first ? 'first' : ''}">
+  const body = rows.map(x => `<tr class="${x.forced > 0.5 ? 'forced' : ''} ${x === first && !already ? 'first' : ''}">
     <td>${x.year}</td><td>${x.age}</td><td>${usd(x.start)}</td>
     <td class="${x.div ? '' : 'dim'}">${x.div ? x.div.toFixed(1) : '—'}</td>
     <td class="${x.isRmd ? '' : 'dim'}">${x.isRmd ? usd(x.rmd) : '—'}</td>
@@ -350,7 +350,6 @@ function render() {
   $('ult').innerHTML = Object.keys(ULT).map(a => `<div class="${rmdRows.some(x => x.age == a) ? 'on' : ''}"><span>${a}${a == 120 ? '+' : ''}</span><span>${ULT[a].toFixed(1)}</span></div>`).join('');
 
   drawChart(rows);
-  try { const o = {}; fields.forEach(k => o[k] = $(k).value); localStorage.setItem(STORE, JSON.stringify(o)); } catch (e) {}
 }
 
 const rmdLabel = () => $('afterRmd').value === 'greater' ? 'Extra required by RMD' : 'RMD';
@@ -388,7 +387,12 @@ function drawChart(rows) {
   chart = new Chart($('chart'), { data, options });
 }
 
-$('f').addEventListener('input', () => { $('example-chip').hidden = true; render(); });
+// Save only after the viewer edits, so untouched example values stay marked as examples.
+$('f').addEventListener('input', () => {
+  $('example-chip').hidden = true;
+  render();
+  try { const o = {}; fields.forEach(k => o[k] = $(k).value); localStorage.setItem(STORE, JSON.stringify(o)); } catch (e) {}
+});
 $('f').addEventListener('submit', e => e.preventDefault());
 
 $('copy').addEventListener('click', () => {
