@@ -140,7 +140,7 @@ details summary { cursor: pointer; font-weight: 600; }
       </div>
       <div class="field">
         <label for="rate">Expected annual return</label>
-        <div class="inbox"><input id="rate" type="number" step="0.1" value="6"><span>%</span></div>
+        <div class="inbox"><input id="rate" type="number" min="-99" step="0.1" value="6"><span>%</span></div>
       </div>
       <div class="hr"></div>
       <div class="field">
@@ -155,7 +155,7 @@ details summary { cursor: pointer; font-weight: 600; }
         </div>
         <div class="field">
           <label for="drawGrowth">Raise it yearly by</label>
-          <div class="inbox"><input id="drawGrowth" type="number" step="0.1" value="2.5"><span>%</span></div>
+          <div class="inbox"><input id="drawGrowth" type="number" min="-99" step="0.1" value="2.5"><span>%</span></div>
         </div>
       </div>
       <div class="field">
@@ -194,7 +194,7 @@ details summary { cursor: pointer; font-weight: 600; }
         <div class="sec-head"><h2>Withdrawals and balance by age</h2></div>
         <div class="legend">
           <span><i style="background:var(--plan)"></i>Planned withdrawal</span>
-          <span><i style="background:var(--rmd)"></i>Extra required by RMD</span>
+          <span><i style="background:var(--rmd)"></i><span id="rmd-legend">Extra required by RMD</span></span>
           <span><i style="background:var(--accent);height:3px;vertical-align:3px"></i>Year-end balance</span>
         </div>
         <div class="chart-box"><canvas id="chart" aria-label="Chart of annual withdrawals and account balance by age" role="img"></canvas></div>
@@ -265,9 +265,11 @@ function project(p) {
       w = Math.min(w, start + growth);
       end = start + growth - w;
     }
-    const base = Math.min(w, planned);
-    const forced = isRmd ? Math.max(0, w - base) : 0;
-    rows.push({ year, age, start, div, rmd, planned, w, base: isRmd ? base : w, forced, growth, end, isRmd });
+    // forced: amount taken above the plan because of the RMD.
+    const forced = isRmd ? Math.max(0, w - planned) : 0;
+    // Chart split: in RMD-only mode every RMD-year dollar is the RMD; otherwise plan + RMD excess.
+    const barRmd = isRmd ? (p.afterRmd === 'greater' ? forced : w) : 0;
+    rows.push({ year, age, start, div, rmd, planned, w, base: w - barRmd, barRmd, forced, growth, end, isRmd });
     bal = Math.max(0, end);
   }
   return rows;
@@ -294,10 +296,10 @@ function readInputs() {
     birthYear, startYear: thisYear,
     endAge: Math.min(120, Math.round(num('endAge', 100))),
     balance: Math.max(0, num('balance', 0)),
-    rate: num('rate', 0),
+    rate: Math.max(-99, num('rate', 0)),
     draw: Math.max(0, num('draw', 0)),
     drawStartAge: Math.round(num('drawStartAge', 0)),
-    drawGrowth: num('drawGrowth', 0),
+    drawGrowth: Math.max(-99, num('drawGrowth', 0)),
     afterRmd: $('afterRmd').value,
     timing: $('timing').value,
     rmdAge: $('rmdAge').value === 'auto' ? auto : parseInt($('rmdAge').value, 10),
@@ -351,7 +353,10 @@ function render() {
   try { const o = {}; fields.forEach(k => o[k] = $(k).value); localStorage.setItem(STORE, JSON.stringify(o)); } catch (e) {}
 }
 
+const rmdLabel = () => $('afterRmd').value === 'greater' ? 'Extra required by RMD' : 'RMD';
+
 function drawChart(rows) {
+  $('rmd-legend').textContent = rmdLabel();
   if (!window.Chart) return;
   const c = { plan: cssVar('--plan'), rmd: cssVar('--rmd'), accent: cssVar('--accent'), muted: cssVar('--muted'), line: cssVar('--line'), font: cssVar('--font-body') };
   const data = {
@@ -359,7 +364,7 @@ function drawChart(rows) {
     datasets: [
       { type: 'line', label: 'Year-end balance', data: rows.map(x => x.end), yAxisID: 'yb', borderColor: c.accent, backgroundColor: c.accent, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: 0.2, order: 0 },
       { type: 'bar', label: 'Planned withdrawal', data: rows.map(x => x.base), yAxisID: 'yw', backgroundColor: c.plan, stack: 'w', order: 1 },
-      { type: 'bar', label: 'Extra required by RMD', data: rows.map(x => x.forced), yAxisID: 'yw', backgroundColor: c.rmd, stack: 'w', order: 1 },
+      { type: 'bar', label: rmdLabel(), data: rows.map(x => x.barRmd), yAxisID: 'yw', backgroundColor: c.rmd, stack: 'w', order: 1 },
     ],
   };
   const options = {
