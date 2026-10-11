@@ -517,7 +517,9 @@ function renderRules() {
 
 function inputSummary() {
   const p = readInputs();
-  const joint = lastRows.some(x => x.joint);
+  // Decided from the ages, not from projected rows, so it holds even when RMD years fall outside the projection.
+  const joint = p.spouseBirthYear != null && p.spouseBirthYear - p.birthYear > 10;
+  const usd = n => '$' + n.toLocaleString('en-US', { maximumFractionDigits: 2 });
   return [
     ['Birth year', p.birthYear],
     ['Spouse sole beneficiary', p.spouseBirthYear == null ? 'No' : `Yes, born ${p.spouseBirthYear}`],
@@ -548,12 +550,13 @@ function copyText(text, toastId, okMsg) {
 
 const csvCell = v => /[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v);
 $('copy').addEventListener('click', () => {
-  const lines = [csvCell(stamp()), ''];
+  // Table first so the header stays in row 1 for importers; provenance follows below it.
+  const lines = ['Year,Age,Jan 1 balance,Factor,Table,RMD,Planned,Withdrawn,Growth,Dec 31 balance'];
+  lastRows.forEach(x => lines.push([x.year, x.age, x.start.toFixed(2), x.div ? x.div.toFixed(1) : '', x.div ? (x.joint ? 'Joint' : 'Uniform') : '', x.rmd.toFixed(2), x.planned.toFixed(2), x.w.toFixed(2), x.growth.toFixed(2), x.end.toFixed(2)].join(',')));
+  lines.push('', csvCell(stamp()));
   inputSummary().forEach(([k, v]) => lines.push([k, v].map(csvCell).join(',')));
   lines.push(['Not modeled', RULES.notModeled.join(' ')].map(csvCell).join(','));
-  lines.push(['Disclaimer', 'Planning estimate only, not tax or legal advice. Confirm each RMD with the account custodian.'].map(csvCell).join(','), '');
-  lines.push('Year,Age,Jan 1 balance,Factor,Table,RMD,Planned,Withdrawn,Growth,Dec 31 balance');
-  lastRows.forEach(x => lines.push([x.year, x.age, x.start.toFixed(2), x.div ? x.div.toFixed(1) : '', x.div ? (x.joint ? 'Joint' : 'Uniform') : '', x.rmd.toFixed(2), x.planned.toFixed(2), x.w.toFixed(2), x.growth.toFixed(2), x.end.toFixed(2)].join(',')));
+  lines.push(['Disclaimer', 'Planning estimate only, not tax or legal advice. Confirm each RMD with the account custodian.'].map(csvCell).join(','));
   copyText(lines.join('\n'), 'toast', 'Copied with inputs and rules version. Paste into Excel or Sheets.');
 });
 
