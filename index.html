@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style>
+<title>RMD Projector</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
+<style>
+/* Layout: inputs rail on the left (sticky on desktop), results column on the right; stacks on phones. */
+:root {
+  --bg: #eef1f4;
+  --surface: #ffffff;
+  --ink: #15202b;
+  --muted: #5b6876;
+  --line: #d6dde4;
+  --accent: #1f4e79;      /* treasury blue: balance, controls */
+  --accent-soft: #dce7f2;
+  --rmd: #a8650f;         /* amber: anything forced by an RMD */
+  --rmd-soft: #f6e8d2;
+  --plan: #7f9bb8;        /* planned withdrawals */
+  --font-body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e141a; --surface: #151e27; --ink: #e3e9ef; --muted: #93a1af; --line: #283541;
+    --accent: #7fb0e0; --accent-soft: #1b2c3d; --rmd: #e3a54d; --rmd-soft: #33261a; --plan: #4f6b88;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e141a; --surface: #151e27; --ink: #e3e9ef; --muted: #93a1af; --line: #283541;
+  --accent: #7fb0e0; --accent-soft: #1b2c3d; --rmd: #e3a54d; --rmd-soft: #33261a; --plan: #4f6b88;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+  padding: 0 16px; padding-block: 28px 48px;
+}
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 24px; }
+header h1 { font-size: 1.9rem; font-weight: 800; letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
+header p { margin: 6px 0 0; color: var(--muted); max-width: 68ch; }
+
+.layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 860px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px; }
+form.panel { display: grid; gap: 14px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); }
+@media (max-width: 860px) { form.panel { position: static; } }
+.eyebrow { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 0; }
+.field { display: grid; gap: 4px; }
+.field label { font-weight: 600; font-size: 0.88rem; }
+.field small { color: var(--muted); font-size: 0.78rem; }
+.inbox { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); }
+.inbox:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
+.inbox span { padding: 0 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.inbox input, .inbox select {
+  flex: 1; min-width: 0; width: 100%; border: 0; background: transparent; color: var(--ink);
+  font: inherit; font-variant-numeric: tabular-nums; padding: 8px 10px; outline: none;
+}
+.inbox span + input { padding-left: 0; }
+.pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+form.panel, .field { grid-template-columns: minmax(0, 1fr); min-width: 0; }
+.hr { height: 1px; background: var(--line); margin: 2px 0; }
+.chip { display: inline-block; font-size: 0.78rem; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); }
+
+.results { display: grid; gap: 20px; min-width: 0; }
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+@media (max-width: 560px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.tile { background: var(--surface); padding: 14px 16px; display: grid; gap: 2px; align-content: start; }
+.tile .k { font-size: 0.75rem; color: var(--muted); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.tile .v { font-size: 1.45rem; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.tile .s { font-size: 0.8rem; color: var(--muted); }
+.tile.rmd .v { color: var(--rmd); }
+
+.chart-box { position: relative; height: 320px; }
+.legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 0.82rem; color: var(--muted); margin-bottom: 10px; }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -1px; margin-right: 6px; }
+
+.sec-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.sec-head h2 { font-size: 1.05rem; margin: 0; }
+button {
+  font: inherit; font-size: 0.85rem; font-weight: 600; color: var(--accent); background: var(--accent-soft);
+  border: 1px solid transparent; border-radius: 6px; padding: 6px 12px; cursor: pointer;
+}
+button:hover { border-color: var(--accent); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: 0.86rem; }
+th, td { padding: 7px 10px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
+th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--surface); }
+th:first-child, td:first-child { text-align: left; }
+tr.forced td.w { color: var(--rmd); font-weight: 600; }
+tr.first td { border-top: 2px solid var(--rmd); }
+tr.first td:first-child::after { content: "RMDs begin"; margin-left: 8px; font-size: 0.7rem; font-weight: 600; color: var(--rmd); background: var(--rmd-soft); padding: 1px 6px; border-radius: 99px; }
+td.dim { color: var(--muted); }
+.table-wrap { max-height: 520px; overflow: auto; }
+
+details summary { cursor: pointer; font-weight: 600; }
+.ult { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 2px 14px; margin-top: 12px; font-family: var(--font-mono); font-size: 0.82rem; }
+.ult div { display: flex; justify-content: space-between; border-bottom: 1px dotted var(--line); padding: 2px 0; }
+.ult div span:first-child { color: var(--muted); }
+.ult div.on { color: var(--rmd); font-weight: 500; }
+.notes { color: var(--muted); font-size: 0.85rem; display: grid; gap: 6px; margin: 0; padding-left: 18px; }
+.notes a { color: var(--accent); }
+.toast { font-size: 0.8rem; color: var(--muted); margin-left: 8px; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>RMD Projector</h1>
+    <p>Project required minimum distributions from a traditional IRA or 401(k), including the withdrawals you take before RMD age. Uses the IRS Uniform Lifetime Table (2022 and later) and SECURE 2.0 start ages.</p>
+  </header>
+
+  <div class="layout">
+    <form class="panel" id="f" autocomplete="off">
+      <p class="eyebrow">Your numbers <span class="chip" id="example-chip">Example values</span></p>
+      <div class="pair">
+        <div class="field">
+          <label for="birthYear">Birth year</label>
+          <div class="inbox"><input id="birthYear" type="number" min="1925" max="2010" step="1" value="1964"></div>
+        </div>
+        <div class="field">
+          <label for="endAge">Project to age</label>
+          <div class="inbox"><input id="endAge" type="number" min="60" max="120" step="1" value="100"></div>
+        </div>
+      </div>
+      <div class="field">
+        <label for="balance">Account balance today</label>
+        <div class="inbox"><span>$</span><input id="balance" type="number" min="0" step="1000" value="850000"></div>
+        <small>Pre-tax balance as of Jan 1, <span class="yr"></span>.</small>
+      </div>
+      <div class="field">
+        <label for="rate">Expected annual return</label>
+        <div class="inbox"><input id="rate" type="number" step="0.1" value="6"><span>%</span></div>
+      </div>
+      <div class="hr"></div>
+      <div class="field">
+        <label for="draw">Annual withdrawal before RMDs</label>
+        <div class="inbox"><span>$</span><input id="draw" type="number" min="0" step="1000" value="30000"></div>
+        <small>Use 0 if nothing comes out until RMDs start.</small>
+      </div>
+      <div class="pair">
+        <div class="field">
+          <label for="drawStartAge">Starting at age</label>
+          <div class="inbox"><input id="drawStartAge" type="number" min="0" max="120" step="1" value="62"></div>
+        </div>
+        <div class="field">
+          <label for="drawGrowth">Raise it yearly by</label>
+          <div class="inbox"><input id="drawGrowth" type="number" step="0.1" value="2.5"><span>%</span></div>
+        </div>
+      </div>
+      <div class="field">
+        <label for="afterRmd">Once RMDs start, withdraw</label>
+        <div class="inbox"><select id="afterRmd">
+          <option value="greater">The larger of the RMD or my planned amount</option>
+          <option value="rmd">Only the RMD</option>
+        </select></div>
+      </div>
+      <div class="hr"></div>
+      <div class="pair">
+        <div class="field">
+          <label for="rmdAge">RMD start age</label>
+          <div class="inbox"><select id="rmdAge">
+            <option value="auto">Auto</option>
+            <option value="72">72</option>
+            <option value="73">73</option>
+            <option value="75">75</option>
+          </select></div>
+        </div>
+        <div class="field">
+          <label for="timing">Withdrawals taken</label>
+          <div class="inbox"><select id="timing">
+            <option value="start">Start of year</option>
+            <option value="end">End of year</option>
+          </select></div>
+        </div>
+      </div>
+      <small id="rmdAgeNote" style="color:var(--muted);font-size:0.78rem"></small>
+    </form>
+
+    <div class="results">
+      <div class="tiles" id="tiles"></div>
+
+      <section class="panel">
+        <div class="sec-head"><h2>Withdrawals and balance by age</h2></div>
+        <div class="legend">
+          <span><i style="background:var(--plan)"></i>Planned withdrawal</span>
+          <span><i style="background:var(--rmd)"></i>Extra required by RMD</span>
+          <span><i style="background:var(--accent);height:3px;vertical-align:3px"></i>Year-end balance</span>
+        </div>
+        <div class="chart-box"><canvas id="chart" aria-label="Chart of annual withdrawals and account balance by age" role="img"></canvas></div>
+      </section>
+
+      <section class="panel">
+        <div class="sec-head">
+          <h2>Year-by-year projection</h2>
+          <div><button type="button" id="copy">Copy as CSV</button><span class="toast" id="toast" aria-live="polite"></span></div>
+        </div>
+        <div class="table-wrap scroll"><table id="tbl"></table></div>
+      </section>
+
+      <section class="panel">
+        <details>
+          <summary>Uniform Lifetime Table (IRS Pub. 590-B, Table III)</summary>
+          <p style="color:var(--muted);font-size:0.85rem;margin:10px 0 0">RMD = prior Dec 31 balance ÷ distribution period for the age reached this year. Highlighted ages are the RMD years in this projection.</p>
+          <div class="ult" id="ult"></div>
+        </details>
+      </section>
+
+      <section class="panel">
+        <p class="eyebrow" style="margin-bottom:8px">How this works</p>
+        <ul class="notes">
+          <li>Each year's RMD is that year's starting balance (the prior Dec 31 value) divided by the Uniform Lifetime Table factor for the age reached that year.</li>
+          <li>Auto start age follows SECURE 2.0: born 1950 or earlier, 72; 1951–1959, 73; 1960 or later, 75. The 2024 proposed IRS regulations put 1959 births at 73.</li>
+          <li>Your first RMD can wait until April 1 of the following year, but then two RMDs land in the same tax year. This projection takes each RMD in the year it's due.</li>
+          <li>If your spouse is the sole beneficiary and more than 10 years younger, the Joint Life table applies and RMDs are smaller. Inherited accounts and Roth IRAs follow different rules. Still working? Your current employer's 401(k) may let you delay.</li>
+          <li>Returns are a fixed rate with no taxes or fees. Treat the output as a planning estimate, not tax advice.</li>
+          <li>Source: <a href="https://www.irs.gov/publications/p590b" target="_blank" rel="noopener">IRS Publication 590-B, Appendix B</a>.</li>
+        </ul>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+// IRS Uniform Lifetime Table (Pub. 590-B Table III, effective 2022+). Age 120 and over: 2.0.
+const ULT = {72:27.4,73:26.5,74:25.5,75:24.6,76:23.7,77:22.9,78:22.0,79:21.1,80:20.2,81:19.4,82:18.5,83:17.7,84:16.8,85:16.0,86:15.2,87:14.4,88:13.7,89:12.9,90:12.2,91:11.5,92:10.8,93:10.1,94:9.5,95:8.9,96:8.4,97:7.8,98:7.3,99:6.8,100:6.4,101:6.0,102:5.6,103:5.2,104:4.9,105:4.6,106:4.3,107:4.1,108:3.9,109:3.7,110:3.5,111:3.4,112:3.3,113:3.1,114:3.0,115:2.9,116:2.8,117:2.7,118:2.5,119:2.3,120:2.0};
+const divisor = age => age >= 120 ? 2.0 : ULT[age];
+
+function autoRmdAge(birthYear) {
+  if (birthYear <= 1950) return 72;
+  if (birthYear <= 1959) return 73;
+  return 75;
+}
+
+function project(p) {
+  const rows = [];
+  const r = p.rate / 100, g = p.drawGrowth / 100;
+  let bal = p.balance;
+  for (let year = p.startYear; ; year++) {
+    const age = year - p.birthYear;
+    if (age > p.endAge || age > 125) break;
+    const start = bal;
+    const isRmd = age >= p.rmdAge;
+    const div = isRmd ? divisor(age) : null;
+    const rmd = isRmd ? start / div : 0;
+    const planned = age >= p.drawStartAge ? p.draw * Math.pow(1 + g, Math.max(0, age - Math.max(p.drawStartAge, p.startYear - p.birthYear))) : 0;
+    let w = isRmd ? (p.afterRmd === 'greater' ? Math.max(rmd, planned) : rmd) : planned;
+    let growth, end;
+    if (p.timing === 'start') {
+      w = Math.min(w, start);
+      growth = (start - w) * r;
+      end = start - w + growth;
+    } else {
+      growth = start * r;
+      w = Math.min(w, start + growth);
+      end = start + growth - w;
+    }
+    const base = Math.min(w, planned);
+    const forced = isRmd ? Math.max(0, w - base) : 0;
+    rows.push({ year, age, start, div, rmd, planned, w, base: isRmd ? base : w, forced, growth, end, isRmd });
+    bal = Math.max(0, end);
+  }
+  return rows;
+}
+
+const $ = id => document.getElementById(id);
+const fields = ['birthYear','endAge','balance','rate','draw','drawStartAge','drawGrowth','afterRmd','rmdAge','timing'];
+const usd = n => '$' + Math.round(n).toLocaleString('en-US');
+const usdK = n => Math.abs(n) >= 1e6 ? '$' + (n/1e6).toFixed(n >= 1e7 ? 1 : 2) + 'M' : '$' + Math.round(n/1000).toLocaleString('en-US') + 'K';
+const thisYear = new Date().getFullYear();
+document.querySelectorAll('.yr').forEach(e => e.textContent = thisYear);
+
+const STORE = 'rmd-projector-inputs';
+try {
+  const saved = JSON.parse(localStorage.getItem(STORE) || 'null');
+  if (saved) { fields.forEach(k => { if (saved[k] != null) $(k).value = saved[k]; }); $('example-chip').hidden = true; }
+} catch (e) {}
+
+function readInputs() {
+  const num = (id, d) => { const v = parseFloat($(id).value); return isFinite(v) ? v : d; };
+  const birthYear = Math.round(num('birthYear', 1964));
+  const auto = autoRmdAge(birthYear);
+  return {
+    birthYear, startYear: thisYear,
+    endAge: Math.min(120, Math.round(num('endAge', 100))),
+    balance: Math.max(0, num('balance', 0)),
+    rate: num('rate', 0),
+    draw: Math.max(0, num('draw', 0)),
+    drawStartAge: Math.round(num('drawStartAge', 0)),
+    drawGrowth: num('drawGrowth', 0),
+    afterRmd: $('afterRmd').value,
+    timing: $('timing').value,
+    rmdAge: $('rmdAge').value === 'auto' ? auto : parseInt($('rmdAge').value, 10),
+    autoAge: auto,
+  };
+}
+
+let chart, lastRows = [];
+function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+
+function render() {
+  const p = readInputs();
+  const rows = project(p);
+  lastRows = rows;
+  $('rmdAgeNote').textContent = `Born ${p.birthYear}: RMDs start at ${p.autoAge} under current law (year ${p.birthYear + p.autoAge}).` + ($('rmdAge').value !== 'auto' && p.rmdAge !== p.autoAge ? ` Overridden to ${p.rmdAge}.` : '');
+
+  // Summary
+  const first = rows.find(x => x.isRmd);
+  const rmdRows = rows.filter(x => x.isRmd);
+  const peak = rmdRows.reduce((a, x) => (!a || x.rmd > a.rmd ? x : a), null);
+  const overtake = rmdRows.find(x => x.rmd > x.planned + 0.5);
+  const totalW = rows.reduce((s, x) => s + x.w, 0);
+  const totalForced = rows.reduce((s, x) => s + x.forced, 0);
+  const last = rows[rows.length - 1];
+  const already = first && first.age > p.rmdAge;
+  const tiles = [
+    { k: 'RMDs begin', v: first ? (already ? 'Now' : `Age ${p.rmdAge}`) : '—', s: first ? (already ? `Already past age ${p.rmdAge}` : `Tax year ${p.birthYear + p.rmdAge}`) : 'Not reached in this projection' },
+    { k: 'Balance at RMD start', v: first ? usd(first.start) : '—', s: first ? `Jan 1, ${first.year}` : '' },
+    { k: 'First RMD', v: first ? usd(first.rmd) : '—', s: first ? `${usd(first.start)} ÷ ${first.div.toFixed(1)}` : '', cls: 'rmd' },
+    { k: 'Largest RMD', v: peak ? usd(peak.rmd) : '—', s: peak ? `Age ${peak.age} (${peak.year})` : '', cls: 'rmd' },
+    { k: p.afterRmd === 'greater' ? 'RMD exceeds plan' : 'RMD vs. plan', v: overtake ? `Age ${overtake.age}` : (first ? 'Never' : '—'),
+      s: overtake ? `${usd(totalForced)} more than planned overall` : (first ? 'Planned amount always covers it' : '') , cls: overtake ? 'rmd' : '' },
+    { k: `Balance at age ${last ? last.age : p.endAge}`, v: last ? usd(last.end) : '—', s: `${usd(totalW)} withdrawn in total` },
+  ];
+  $('tiles').innerHTML = tiles.map(t => `<div class="tile ${t.cls || ''}"><span class="k">${t.k}</span><span class="v">${t.v}</span><span class="s">${t.s}</span></div>`).join('');
+
+  // Table
+  const head = '<thead><tr><th>Year</th><th>Age</th><th>Jan 1 balance</th><th>Factor</th><th>RMD</th><th>Planned</th><th>Withdrawn</th><th>Growth</th><th>Dec 31 balance</th></tr></thead>';
+  const body = rows.map(x => `<tr class="${x.forced > 0.5 ? 'forced' : ''} ${x === first ? 'first' : ''}">
+    <td>${x.year}</td><td>${x.age}</td><td>${usd(x.start)}</td>
+    <td class="${x.div ? '' : 'dim'}">${x.div ? x.div.toFixed(1) : '—'}</td>
+    <td class="${x.isRmd ? '' : 'dim'}">${x.isRmd ? usd(x.rmd) : '—'}</td>
+    <td class="${x.planned ? '' : 'dim'}">${x.planned ? usd(x.planned) : '—'}</td>
+    <td class="w">${usd(x.w)}</td><td>${usd(x.growth)}</td><td>${usd(x.end)}</td></tr>`).join('');
+  $('tbl').innerHTML = head + '<tbody>' + body + '</tbody>';
+
+  // Reference table
+  $('ult').innerHTML = Object.keys(ULT).map(a => `<div class="${rmdRows.some(x => x.age == a) ? 'on' : ''}"><span>${a}${a == 120 ? '+' : ''}</span><span>${ULT[a].toFixed(1)}</span></div>`).join('');
+
+  drawChart(rows);
+  try { const o = {}; fields.forEach(k => o[k] = $(k).value); localStorage.setItem(STORE, JSON.stringify(o)); } catch (e) {}
+}
+
+function drawChart(rows) {
+  if (!window.Chart) return;
+  const c = { plan: cssVar('--plan'), rmd: cssVar('--rmd'), accent: cssVar('--accent'), muted: cssVar('--muted'), line: cssVar('--line'), font: cssVar('--font-body') };
+  const data = {
+    labels: rows.map(x => x.age),
+    datasets: [
+      { type: 'line', label: 'Year-end balance', data: rows.map(x => x.end), yAxisID: 'yb', borderColor: c.accent, backgroundColor: c.accent, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: 0.2, order: 0 },
+      { type: 'bar', label: 'Planned withdrawal', data: rows.map(x => x.base), yAxisID: 'yw', backgroundColor: c.plan, stack: 'w', order: 1 },
+      { type: 'bar', label: 'Extra required by RMD', data: rows.map(x => x.forced), yAxisID: 'yw', backgroundColor: c.rmd, stack: 'w', order: 1 },
+    ],
+  };
+  const options = {
+    responsive: true, maintainAspectRatio: false, animation: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: {
+        title: items => `Age ${items[0].label} (${rows[items[0].dataIndex].year})`,
+        label: it => `${it.dataset.label}: ${usd(it.parsed.y)}`,
+        footer: items => { const x = rows[items[0].dataIndex]; return x.isRmd ? `RMD: ${usd(x.rmd)}  ·  Total out: ${usd(x.w)}` : `Total out: ${usd(x.w)}`; },
+      } },
+    },
+    scales: {
+      x: { stacked: true, grid: { display: false }, ticks: { color: c.muted, font: { family: c.font }, maxRotation: 0, autoSkipPadding: 12 }, title: { display: true, text: 'Age', color: c.muted } },
+      yw: { stacked: true, position: 'left', beginAtZero: true, grid: { color: c.line }, ticks: { color: c.muted, callback: v => usdK(v) }, title: { display: true, text: 'Withdrawn per year', color: c.muted } },
+      yb: { position: 'right', beginAtZero: true, grid: { display: false }, ticks: { color: c.muted, callback: v => usdK(v) }, title: { display: true, text: 'Balance', color: c.muted } },
+    },
+  };
+  if (chart) chart.destroy();
+  chart = new Chart($('chart'), { data, options });
+}
+
+$('f').addEventListener('input', () => { $('example-chip').hidden = true; render(); });
+$('f').addEventListener('submit', e => e.preventDefault());
+
+$('copy').addEventListener('click', () => {
+  const lines = ['Year,Age,Jan 1 balance,Factor,RMD,Planned,Withdrawn,Growth,Dec 31 balance'];
+  lastRows.forEach(x => lines.push([x.year, x.age, x.start.toFixed(2), x.div ? x.div.toFixed(1) : '', x.rmd.toFixed(2), x.planned.toFixed(2), x.w.toFixed(2), x.growth.toFixed(2), x.end.toFixed(2)].join(',')));
+  const text = lines.join('\n');
+  const done = msg => { $('toast').textContent = msg; setTimeout(() => $('toast').textContent = '', 2500); };
+  try {
+    navigator.clipboard.writeText(text).then(() => done('Copied. Paste into Excel or Sheets.'), () => fallback());
+  } catch (e) { fallback(); }
+  function fallback() {
+    const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    let ok = false; try { ok = document.execCommand('copy'); } catch (e) {}
+    ta.remove(); done(ok ? 'Copied. Paste into Excel or Sheets.' : 'Copy was blocked by this browser.');
+  }
+});
+
+// Redraw chart colors when the theme changes.
+const redraw = () => drawChart(lastRows);
+try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', redraw); } catch (e) {}
+new MutationObserver(redraw).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+render();
+</script>
