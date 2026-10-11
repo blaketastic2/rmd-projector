@@ -103,6 +103,18 @@ tr.forced td.w { color: var(--rmd); font-weight: 600; }
 tr.first td { border-top: 2px solid var(--rmd); }
 tr.first td:first-child::after { content: "RMDs begin"; margin-left: 8px; font-size: 0.7rem; font-weight: 600; color: var(--rmd); background: var(--rmd-soft); padding: 1px 6px; border-radius: 99px; }
 td.dim { color: var(--muted); }
+.stamp { font-size: 0.82rem; }
+.stamp a, .rules-table a { color: var(--accent); }
+.rules-meta { color: var(--muted); font-size: 0.85rem; margin: 0 0 12px; max-width: 75ch; }
+.rules-table td, .rules-table th { text-align: left; white-space: normal; vertical-align: top; }
+.rules-table td:first-child { font-weight: 600; white-space: nowrap; }
+.rules-table td:nth-child(2) { min-width: 240px; }
+.rules-table td:nth-child(4) { min-width: 190px; }
+.status { display: inline-block; font-size: 0.72rem; font-weight: 600; padding: 1px 8px; border-radius: 99px; white-space: nowrap; background: var(--accent-soft); color: var(--accent); }
+.status.proposed { background: var(--rmd-soft); color: var(--rmd); }
+.changelog { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 0.85rem; }
+.changelog li { display: grid; grid-template-columns: 6.5em minmax(0, 1fr); gap: 8px; }
+.changelog time { color: var(--muted); font-variant-numeric: tabular-nums; }
 .tag { margin-left: 6px; font-size: 0.68rem; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: 1px 6px; border-radius: 99px; }
 .table-wrap { max-height: 520px; overflow: auto; }
 
@@ -120,7 +132,8 @@ details summary { cursor: pointer; font-weight: 600; }
 <div class="wrap">
   <header>
     <h1>RMD Projector</h1>
-    <p>Project required minimum distributions from a traditional IRA or 401(k), including the withdrawals you take before RMD age. Uses the IRS Uniform Lifetime Table (2022 and later) and SECURE 2.0 start ages.</p>
+    <p>Project required minimum distributions from a traditional IRA or 401(k), including the withdrawals you take before RMD age. Uses the IRS Uniform Lifetime and Joint Life tables (2022 and later) and SECURE 2.0 start ages.</p>
+    <p class="stamp">Rules version <b id="rulesVer"></b> · last verified <span id="rulesDate"></span> · <a href="#rules">See the rules in effect</a></p>
   </header>
 
   <div class="layout">
@@ -237,23 +250,70 @@ details summary { cursor: pointer; font-weight: 600; }
         </details>
       </section>
 
-      <section class="panel">
-        <p class="eyebrow" style="margin-bottom:8px">How this works</p>
-        <ul class="notes">
-          <li>Each year's RMD is that year's starting balance (the prior Dec 31 value) divided by the Uniform Lifetime Table factor for the age reached that year.</li>
-          <li>If your spouse is the sole beneficiary for the whole year and more than 10 years younger, the Joint and Last Survivor Table replaces the Uniform table, using both ages reached that year. Its factors are larger, so RMDs are smaller.</li>
-          <li>Auto start age follows SECURE 2.0: born 1950 or earlier, 72; 1951–1959, 73; 1960 or later, 75. The 2024 proposed IRS regulations put 1959 births at 73.</li>
-          <li>Your first RMD can wait until April 1 of the following year, but then two RMDs land in the same tax year. This projection takes each RMD in the year it's due.</li>
-          <li>Inherited accounts and Roth IRAs follow different rules. Still working? Your current employer's 401(k) may let you delay.</li>
-          <li>Returns are a fixed rate with no taxes or fees. Treat the output as a planning estimate, not tax advice.</li>
-          <li>Source: <a href="https://www.irs.gov/publications/p590b" target="_blank" rel="noopener">IRS Publication 590-B, Appendix B</a> and <a href="https://www.ecfr.gov/current/title-26/section-1.401(a)(9)-9" target="_blank" rel="noopener">Treas. Reg. §1.401(a)(9)-9</a>.</li>
-        </ul>
+      <section class="panel" id="rules">
+        <div class="sec-head">
+          <h2>Rules in effect</h2>
+          <div><button type="button" id="copyRules">Copy rules and assumptions</button><span class="toast" id="rulesToast" aria-live="polite"></span></div>
+        </div>
+        <p class="rules-meta">Version <b class="rv"></b>, last verified <span class="rd"></span>. Copied tables and summaries carry this version, your inputs and the time they were made.</p>
+        <div class="scroll"><table class="rules-table" id="rulesTable"></table></div>
+
+        <p class="eyebrow" style="margin-top:18px">Not modeled</p>
+        <ul class="notes" id="notModeled"></ul>
+
+        <p class="eyebrow" style="margin-top:18px">Checked against</p>
+        <ul class="notes" id="checks"></ul>
+
+        <p class="eyebrow" style="margin-top:18px">Changelog</p>
+        <ul class="changelog" id="changelog"></ul>
+
+        <p class="rules-meta" style="margin-top:16px">Planning estimate only, not tax or legal advice. Confirm each year's RMD with the account custodian.</p>
       </section>
     </div>
   </div>
 </div>
 
 <script>
+// Rules this page applies, shown on the page and stamped onto anything copied out of it.
+// Bump `version` and add a changelog entry whenever a rule, table or default changes.
+const PAGE_URL = 'https://blaketastic2.github.io/rmd-projector/';
+const RULES = {
+  version: '2026.10.10',
+  verified: 'Oct 10, 2026',
+  items: [
+    { rule: 'RMD amount', applied: "Each year's RMD is the prior Dec 31 balance divided by the life expectancy factor for the age reached that year.",
+      status: 'Final regulation', source: ['Treas. Reg. §1.401(a)(9)-5 (plans), §1.408-8 (IRAs); Pub. 590-B', 'https://www.ecfr.gov/current/title-26/section-1.401(a)(9)-5'] },
+    { rule: 'RMD start age', applied: 'Born 1950 or earlier: 72. Born 1951–1958: 73. Born 1960 or later: 75.',
+      status: 'Law', source: ['SECURE 2.0 Act §107 (H.R. 2617, Div. T)', 'https://www.congress.gov/bill/117th-congress/house-bill/2617'] },
+    { rule: 'Born in 1959', applied: 'Start age 73. The statute can be read as 73 or 75; the IRS proposed 73 and has not finalized it.',
+      status: 'Proposed regulation', source: ['Federal Register 2024-14543 (July 19, 2024)', 'https://www.federalregister.gov/documents/2024/07/19/2024-14543/required-minimum-distributions'] },
+    { rule: 'Uniform Lifetime Table', applied: 'Factors for distribution years 2022 and later. Used unless the Joint table applies.',
+      status: 'Final regulation', source: ['Treas. Reg. §1.401(a)(9)-9(c); Pub. 590-B Table III', 'https://www.ecfr.gov/current/title-26/section-1.401(a)(9)-9'] },
+    { rule: 'Joint and Last Survivor Table', applied: 'Used when the spouse is sole beneficiary for the whole year and more than 10 years younger (exactly 10 uses the Uniform table). Both ages reached that year.',
+      status: 'Final regulation', source: ['Treas. Reg. §1.401(a)(9)-9(d); Pub. 590-B Table II', 'https://www.ecfr.gov/current/title-26/section-1.401(a)(9)-9'] },
+  ],
+  notModeled: [
+    'Delaying the first RMD to April 1 of the following year, which puts two RMDs in one tax year. Each RMD is taken in the year it is due.',
+    'Still-working exception for a current employer plan.',
+    'Inherited accounts and non-spouse beneficiary rules.',
+    'Roth accounts, which have no RMDs for the original owner.',
+    'Qualified charitable distributions and aggregating RMDs across several IRAs.',
+    'Taxes, fees and changing returns. Growth uses one fixed rate.',
+  ],
+  checks: [
+    'Oct 10, 2026: Schwab RMD calculator, Uniform table (born 1/15/1953, $500,000, 6%, ages 73–120). Every RMD within $0.01.',
+    'Oct 10, 2026: Schwab RMD calculator, Joint table (spouse born 6/1/1968, ages 73–113). Every RMD within $0.01.',
+    'Oct 10, 2026: Federal Register search found no IRS RMD rule after July 19, 2024, so the 1959 start age is still proposed.',
+    'Table factors parsed from the eCFR text of Treas. Reg. §1.401(a)(9)-9 (version of Sept 17, 2024).',
+  ],
+  changelog: [
+    ['2026-10-10', 'Added this rules section, a version stamp, and provenance on copied tables and summaries.'],
+    ['2026-10-10', 'Added the Joint and Last Survivor Table for spouse beneficiaries more than 10 years younger.'],
+    ['2026-10-10', 'Default withdrawal timing changed to end of year, matching Schwab.'],
+    ['2026-10-10', 'First release: Uniform Lifetime Table and SECURE 2.0 start ages.'],
+  ],
+};
+
 // IRS Uniform Lifetime Table (Pub. 590-B Table III, effective 2022+). Age 120 and over: 2.0.
 const ULT = {72:27.4,73:26.5,74:25.5,75:24.6,76:23.7,77:22.9,78:22.0,79:21.1,80:20.2,81:19.4,82:18.5,83:17.7,84:16.8,85:16.0,86:15.2,87:14.4,88:13.7,89:12.9,90:12.2,91:11.5,92:10.8,93:10.1,94:9.5,95:8.9,96:8.4,97:7.8,98:7.3,99:6.8,100:6.4,101:6.0,102:5.6,103:5.2,104:4.9,105:4.6,106:4.3,107:4.1,108:3.9,109:3.7,110:3.5,111:3.4,112:3.3,113:3.1,114:3.0,115:2.9,116:2.8,117:2.7,118:2.5,119:2.3,120:2.0};
 const uniform = age => age >= 120 ? 2.0 : ULT[age];
@@ -441,20 +501,76 @@ $('f').addEventListener('input', () => {
 });
 $('f').addEventListener('submit', e => e.preventDefault());
 
-$('copy').addEventListener('click', () => {
-  const lines = ['Year,Age,Jan 1 balance,Factor,Table,RMD,Planned,Withdrawn,Growth,Dec 31 balance'];
-  lastRows.forEach(x => lines.push([x.year, x.age, x.start.toFixed(2), x.div ? x.div.toFixed(1) : '', x.div ? (x.joint ? 'Joint' : 'Uniform') : '', x.rmd.toFixed(2), x.planned.toFixed(2), x.w.toFixed(2), x.growth.toFixed(2), x.end.toFixed(2)].join(',')));
-  const text = lines.join('\n');
-  const done = msg => { $('toast').textContent = msg; setTimeout(() => $('toast').textContent = '', 2500); };
+// Render the rules section from RULES so the page and copied text never disagree.
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function renderRules() {
+  document.querySelectorAll('#rulesVer, .rv').forEach(e => e.textContent = RULES.version);
+  document.querySelectorAll('#rulesDate, .rd').forEach(e => e.textContent = RULES.verified);
+  $('rulesTable').innerHTML = '<thead><tr><th>Rule</th><th>What this page does</th><th>Status</th><th>Source</th></tr></thead><tbody>' +
+    RULES.items.map(r => `<tr><td>${esc(r.rule)}</td><td>${esc(r.applied)}</td>
+      <td><span class="status ${r.status.startsWith('Proposed') ? 'proposed' : ''}">${esc(r.status)}</span></td>
+      <td><a href="${esc(r.source[1])}" target="_blank" rel="noopener">${esc(r.source[0])}</a></td></tr>`).join('') + '</tbody>';
+  $('notModeled').innerHTML = RULES.notModeled.map(t => `<li>${esc(t)}</li>`).join('');
+  $('checks').innerHTML = RULES.checks.map(t => `<li>${esc(t)}</li>`).join('');
+  $('changelog').innerHTML = RULES.changelog.map(([d, t]) => `<li><time datetime="${d}">${d}</time><span>${esc(t)}</span></li>`).join('');
+}
+
+function inputSummary() {
+  const p = readInputs();
+  // Decided from the ages, not from projected rows, so it holds even when RMD years fall outside the projection.
+  const joint = p.spouseBirthYear != null && p.spouseBirthYear - p.birthYear > 10;
+  const usd = n => '$' + n.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  return [
+    ['Birth year', p.birthYear],
+    ['Spouse sole beneficiary', p.spouseBirthYear == null ? 'No' : `Yes, born ${p.spouseBirthYear}`],
+    ['Life expectancy table', joint ? 'Joint and Last Survivor' : 'Uniform Lifetime'],
+    [`Balance on Jan 1, ${p.startYear}`, usd(p.balance)],
+    ['Expected annual return', `${p.rate}%`],
+    ['Withdrawal before RMDs', p.draw ? `${usd(p.draw)} a year from age ${p.drawStartAge}, raised ${p.drawGrowth}% a year` : 'None'],
+    ['Once RMDs start', p.afterRmd === 'greater' ? 'Larger of the RMD or planned amount' : 'Only the RMD'],
+    ['RMD start age', `${p.rmdAge}${$('rmdAge').value === 'auto' ? ' (automatic)' : ' (manual override)'}`],
+    ['Withdrawals taken', p.timing === 'end' ? 'End of year' : 'Start of year'],
+    ['Projected to age', p.endAge],
+  ];
+}
+const stamp = () => `Generated ${new Date().toLocaleString('en-US')} by RMD Projector (${PAGE_URL}), rules version ${RULES.version}, last verified ${RULES.verified}.`;
+
+function copyText(text, toastId, okMsg) {
+  const done = msg => { $(toastId).textContent = msg; setTimeout(() => $(toastId).textContent = '', 2500); };
   try {
-    navigator.clipboard.writeText(text).then(() => done('Copied. Paste into Excel or Sheets.'), () => fallback());
+    navigator.clipboard.writeText(text).then(() => done(okMsg), () => fallback());
   } catch (e) { fallback(); }
   function fallback() {
     const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
     document.body.appendChild(ta); ta.select();
     let ok = false; try { ok = document.execCommand('copy'); } catch (e) {}
-    ta.remove(); done(ok ? 'Copied. Paste into Excel or Sheets.' : 'Copy was blocked by this browser.');
+    ta.remove(); done(ok ? okMsg : 'Copy was blocked by this browser.');
   }
+}
+
+const csvCell = v => /[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v);
+$('copy').addEventListener('click', () => {
+  // Table first so the header stays in row 1 for importers; provenance follows below it.
+  const lines = ['Year,Age,Jan 1 balance,Factor,Table,RMD,Planned,Withdrawn,Growth,Dec 31 balance'];
+  lastRows.forEach(x => lines.push([x.year, x.age, x.start.toFixed(2), x.div ? x.div.toFixed(1) : '', x.div ? (x.joint ? 'Joint' : 'Uniform') : '', x.rmd.toFixed(2), x.planned.toFixed(2), x.w.toFixed(2), x.growth.toFixed(2), x.end.toFixed(2)].join(',')));
+  lines.push('', csvCell(stamp()));
+  inputSummary().forEach(([k, v]) => lines.push([k, v].map(csvCell).join(',')));
+  lines.push(['Not modeled', RULES.notModeled.join(' ')].map(csvCell).join(','));
+  lines.push(['Disclaimer', 'Planning estimate only, not tax or legal advice. Confirm each RMD with the account custodian.'].map(csvCell).join(','));
+  copyText(lines.join('\n'), 'toast', 'Copied with inputs and rules version. Paste into Excel or Sheets.');
+});
+
+$('copyRules').addEventListener('click', () => {
+  const out = ['RMD Projector: rules and assumptions', stamp(), '', 'Inputs'];
+  inputSummary().forEach(([k, v]) => out.push(`- ${k}: ${v}`));
+  out.push('', 'Rules applied');
+  RULES.items.forEach(r => out.push(`- ${r.rule} [${r.status}]: ${r.applied} Source: ${r.source[0]}, ${r.source[1]}`));
+  out.push('', 'Not modeled');
+  RULES.notModeled.forEach(t => out.push(`- ${t}`));
+  out.push('', 'Checked against');
+  RULES.checks.forEach(t => out.push(`- ${t}`));
+  out.push('', 'Planning estimate only, not tax or legal advice. Confirm each RMD with the account custodian.');
+  copyText(out.join('\n'), 'rulesToast', 'Copied. Paste into your notes or client file.');
 });
 
 // Redraw chart colors when the theme changes.
@@ -462,5 +578,6 @@ const redraw = () => drawChart(lastRows);
 try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', redraw); } catch (e) {}
 new MutationObserver(redraw).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
+renderRules();
 render();
 </script>
