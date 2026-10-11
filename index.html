@@ -290,7 +290,7 @@ try {
 
 function readInputs() {
   const num = (id, d) => { const v = parseFloat($(id).value); return isFinite(v) ? v : d; };
-  const birthYear = Math.round(num('birthYear', 1964));
+  const birthYear = Math.min(thisYear, Math.max(1900, Math.round(num('birthYear', 1964))));
   const auto = autoRmdAge(birthYear);
   return {
     birthYear, startYear: thisYear,
