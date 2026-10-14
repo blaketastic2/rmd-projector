@@ -22,6 +22,8 @@
   --rmd-soft: #f6e8d2;
   --plan: #7f9bb8;        /* planned withdrawals */
   --one: #2f7d6b;         /* one-time withdrawal */
+  --sp1: #6a4c9c;         /* spouse 1: violet */
+  --sp2: #b0446e;         /* spouse 2: berry */
   --font-body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
@@ -29,12 +31,14 @@
   :root:not([data-theme="light"]) {
     --bg: #0e141a; --surface: #151e27; --ink: #e3e9ef; --muted: #93a1af; --line: #283541;
     --accent: #7fb0e0; --accent-soft: #1b2c3d; --rmd: #e3a54d; --rmd-soft: #33261a; --plan: #4f6b88; --one: #5bb8a0;
+    --sp1: #b69ce0; --sp2: #e58aaf;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #0e141a; --surface: #151e27; --ink: #e3e9ef; --muted: #93a1af; --line: #283541;
   --accent: #7fb0e0; --accent-soft: #1b2c3d; --rmd: #e3a54d; --rmd-soft: #33261a; --plan: #4f6b88; --one: #5bb8a0;
+    --sp1: #b69ce0; --sp2: #e58aaf;
   color-scheme: dark;
 }
 
@@ -69,6 +73,20 @@ form.panel { display: grid; gap: 14px; position: sticky; top: calc(env(safe-area
 .pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
 form.panel, .field, .person { grid-template-columns: minmax(0, 1fr); min-width: 0; }
 .person { display: grid; gap: 14px; }
+/* Couple: each spouse's inputs sit in their own card, edged in that spouse's color. */
+#personA, .s1 { --sp: var(--sp1); }
+#personB, .s2 { --sp: var(--sp2); }
+form.couple .person { border: 1px solid var(--line); border-left: 4px solid var(--sp); border-radius: 10px; padding: 14px; background: color-mix(in srgb, var(--sp) 6%, var(--surface)); }
+form.couple .person > .hr { display: none; }
+.person-head { display: flex; align-items: center; gap: 8px; margin: 0; font-weight: 700; font-size: 1rem; }
+.person-head::before, .sp::before { content: ''; flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--sp); }
+/* inline-flex keeps the dot beside the name when a long name wraps. */
+.sp { display: inline-flex; align-items: center; gap: 5px; }
+.sp::before { width: 8px; height: 8px; }
+.sp > span { min-width: 0; }
+/* In table headers and row tags a long name is cut short; the full name heads that spouse's own table. */
+th .sp, .who .sp { max-width: 11ch; }
+th .sp > span, .who .sp > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .note { color: var(--muted); font-size: 0.78rem; }
 /* Bottom-align paired fields so their boxes line up when one label wraps. */
 .pair > .field { align-content: end; }
@@ -217,7 +235,12 @@ table.assume td:first-child { color: var(--muted); width: 32%; }
       <!-- One person's inputs. The script clones this block for the second spouse, prefixing every id with "b_". -->
       <div class="person" id="personA">
         <div class="hr"></div>
-        <p class="eyebrow" id="personLabel" hidden>Spouse 1</p>
+        <p class="person-head" id="personLabel" hidden>Spouse 1</p>
+        <div class="field" id="nameField" hidden>
+          <label for="name">Name (optional)</label>
+          <div class="inbox"><input id="name" type="text" maxlength="40" placeholder="Spouse 1"></div>
+          <small>Shown in place of "Spouse 1" on the page, in the tables and in the PDF.</small>
+        </div>
         <div class="pair">
           <div class="field">
             <label for="birthYear">Birth year</label>
@@ -510,7 +533,7 @@ function combine(projections) {
 const $ = id => document.getElementById(id);
 
 // The second spouse's inputs are a clone of the first's, with every id prefixed "b_".
-const PERSON_FIELDS = ['birthYear','rmdAge','balance','rate','draw','drawStartAge','drawGrowth','oneOff','oneOffYear'];
+const PERSON_FIELDS = ['name','birthYear','rmdAge','balance','rate','draw','drawStartAge','drawGrowth','oneOff','oneOffYear'];
 (() => {
   const b = $('personA').cloneNode(true);
   b.id = 'personB';
@@ -518,7 +541,8 @@ const PERSON_FIELDS = ['birthYear','rmdAge','balance','rate','draw','drawStartAg
   b.querySelectorAll('[id]').forEach(e => e.id = 'b_' + e.id);
   b.querySelectorAll('label[for]').forEach(l => l.htmlFor = 'b_' + l.htmlFor);
   $('personA').after(b);
-  $('b_personLabel').textContent = 'Spouse 2';
+  $('b_personLabel').textContent = $('b_name').placeholder = 'Spouse 2';
+  $('b_nameField').querySelector('small').textContent = 'Shown in place of "Spouse 2" on the page, in the tables and in the PDF.';
   Object.entries({ birthYear: 1961, balance: 450000, draw: 0 }).forEach(([k, v]) => $('b_' + k).value = v);
 })();
 const fields = ['household','endAge','afterRmd','spouseBen','spouseBirthYear','timing', ...PERSON_FIELDS, ...PERSON_FIELDS.map(k => 'b_' + k)];
@@ -540,6 +564,8 @@ function readPerson(pfx) {
   const birthYear = yearIn(pfx + 'birthYear', 1964);
   const auto = autoRmdAge(birthYear), rmdAuto = $(pfx + 'rmdAge').value === 'auto';
   return {
+    // Leading = + - @ would make a spreadsheet read the name as a formula when the CSV is pasted.
+    name: $(pfx + 'name').value.trim().replace(/^[=+\-@\s]+/, ''),
     birthYear,
     balance: Math.max(0, num(pfx + 'balance', 0)),
     rate: Math.max(-99, num(pfx + 'rate', 0)),
@@ -569,7 +595,11 @@ function readInputs() {
   // Both stop in the same year, so household totals never drop a spouse's balance:
   // when the younger reaches the end age, or the older reaches 120 if that comes first.
   const lastYear = Math.min(Math.max(a.birthYear, b.birthYear) + endAge, Math.min(a.birthYear, b.birthYear) + 120);
-  const people = [[a, b, '', 'Spouse 1'], [b, a, 'b_', 'Spouse 2']].map(([p, other, pfx, label]) => ({ ...shared, ...p, pfx, label,
+  // A name replaces "Spouse 1"/"Spouse 2"; if the two would read the same, each keeps its spouse number.
+  const base = (p, n) => p.name || `Spouse ${n}`;
+  const same = base(a, 1).toLowerCase() === base(b, 2).toLowerCase();
+  const label = (p, n) => same ? `${base(p, n)} (Spouse ${n})` : base(p, n);
+  const people = [[a, b, '', label(a, 1), 1], [b, a, 'b_', label(b, 2), 2]].map(([p, other, pfx, label, n]) => ({ ...shared, ...p, pfx, label, n,
     endAge: Math.max(thisYear - p.birthYear, lastYear - p.birthYear),
     spouseBirthYear: spouseBen ? other.birthYear : null }));
   return { household, people };
@@ -612,8 +642,11 @@ function personTiles(p, rows) {
   ];
 }
 
+// A spouse's name with their color dot, escaped for HTML.
+const tag = p => `<span class="sp s${p.n}" title="${esc(p.label)}"><span>${esc(p.label)}</span></span>`;
+
 function householdTiles(runs, hrows) {
-  const onRmd = h => runs.map((r, i) => h.parts[i] && h.parts[i].isRmd ? `${r.p.label} at ${h.parts[i].age}` : '').filter(Boolean).join(', ');
+  const onRmd = h => runs.map((r, i) => h.parts[i] && h.parts[i].isRmd ? `${tag(r.p)} at ${h.parts[i].age}` : '').filter(Boolean).join(', ');
   const first = hrows.find(x => x.isRmd);
   const both = hrows.find(x => x.parts.every(y => y && y.isRmd));
   const peak = hrows.filter(x => x.isRmd).reduce((a, x) => (!a || x.rmd > a.rmd ? x : a), null);
@@ -621,7 +654,7 @@ function householdTiles(runs, hrows) {
   const totalW = hrows.reduce((s, x) => s + x.w, 0);
   const totalForced = hrows.reduce((s, x) => s + x.forced, 0);
   const end = hrows[hrows.length - 1];
-  const split = h => runs.map((r, i) => `${r.p.label} ${h.parts[i] && h.parts[i].isRmd ? usd(h.parts[i].rmd) : '—'}`).join(' · ');
+  const split = h => runs.map((r, i) => `${tag(r.p)} ${h.parts[i] && h.parts[i].isRmd ? usd(h.parts[i].rmd) : 'none'}`).join(' · ');
   return [
     { k: 'First RMDs', v: first ? String(first.year) : '—', s: first ? onRmd(first) : 'Not reached in this projection' },
     { k: 'Both taking RMDs', v: both ? String(both.year) : '—', s: both ? `${usd(both.rmd)} household RMD that year` : 'Not reached in this projection', cls: both ? 'rmd' : '' },
@@ -651,9 +684,9 @@ function personTable(p, rows) {
 
 function householdTable(runs, hrows) {
   const cell = (y, f) => y ? f(y) : '—';
-  const head = `<thead><tr><th>Year</th><th>Ages</th><th>Jan 1 balance</th>${runs.map(r => `<th>${r.p.label} RMD</th>`).join('')}<th>Household RMD</th><th>Withdrawn</th><th>Dec 31 balance</th></tr></thead>`;
+  const head = `<thead><tr><th>Year</th><th>Ages</th><th>Jan 1 balance</th>${runs.map(r => `<th>${tag(r.p)} RMD</th>`).join('')}<th>Household RMD</th><th>Withdrawn</th><th>Dec 31 balance</th></tr></thead>`;
   const body = hrows.map(h => {
-    const starts = runs.filter((r, i) => begins(h.parts[i], r.p)).map(r => r.p.label);
+    const starts = runs.filter((r, i) => begins(h.parts[i], r.p)).map(r => tag(r.p));
     return `<tr class="${h.forced > 0.5 ? 'forced' : ''} ${starts.length ? 'first-b' : ''}">
     <td>${h.year}${starts.map(l => `<span class="who">${l} RMDs begin</span>`).join('')}</td>
     <td>${h.parts.map(y => cell(y, y => y.age)).join(' / ')}</td><td>${usd(h.start)}</td>
@@ -671,6 +704,9 @@ function render() {
   last = { runs, hrows };
 
   $('personB').hidden = $('personLabel').hidden = $('b_personLabel').hidden = $('endAgeNote').hidden = $('viewBox').hidden = !household;
+  $('nameField').hidden = $('b_nameField').hidden = !household;
+  $('f').classList.toggle('couple', household);
+  if (household) runs.forEach((r, i) => { $(r.p.pfx + 'personLabel').textContent = $('view').options[i + 1].textContent = r.p.label; });
   $('spouseYearField').hidden = household || $('spouseBen').value !== 'yes';
   $('spouseBenLabel').textContent = household ? "Each is the other's sole beneficiary" : 'Spouse is sole beneficiary';
   runs.forEach(r => personNotes(r.p, r.rows));
@@ -839,9 +875,9 @@ $('copy').addEventListener('click', () => {
   const lines = [];
   if (hrows) {
     const L = runs.map(r => r.p.label);
-    lines.push(['Year', ...L.map(l => `${l} age`), 'Household Jan 1 balance', ...L.map(l => `${l} RMD`), 'Household RMD', 'Household withdrawn', 'Household Dec 31 balance'].join(','));
+    lines.push(['Year', ...L.map(l => `${l} age`), 'Household Jan 1 balance', ...L.map(l => `${l} RMD`), 'Household RMD', 'Household withdrawn', 'Household Dec 31 balance'].map(csvCell).join(','));
     hrows.forEach(h => lines.push([h.year, ...h.parts.map(y => y ? y.age : ''), h.start.toFixed(2), ...h.parts.map(y => y ? y.rmd.toFixed(2) : ''), h.rmd.toFixed(2), h.w.toFixed(2), h.end.toFixed(2)].join(',')));
-    runs.forEach(r => lines.push('', r.p.label, PERSON_HEAD, ...personLines(r.rows)));
+    runs.forEach(r => lines.push('', csvCell(r.p.label), PERSON_HEAD, ...personLines(r.rows)));
   } else {
     lines.push(PERSON_HEAD, ...personLines(runs[0].rows));
   }
@@ -895,8 +931,9 @@ function preparePrint() {
   const title = $('reportTitle').value.trim() || 'RMD projection';
   document.title = title;  // Browsers suggest this as the PDF's file name.
   $('printTitle').textContent = title;
-  const { household } = readInputs();
-  $('printSub').textContent = `Required minimum distribution projection${household ? ' for a married couple' : ''} · Prepared ${new Date().toLocaleDateString('en-US', { dateStyle: 'long' })} · Rules version ${RULES.version}, last verified ${RULES.verified} · ${PAGE_URL} · Planning estimate only, not tax or legal advice.`;
+  const { household, people } = readInputs();
+  const named = household && people.every(p => p.name);
+  $('printSub').textContent = `Required minimum distribution projection${named ? ` for ${people[0].label} and ${people[1].label}` : household ? ' for a married couple' : ''} · Prepared ${new Date().toLocaleDateString('en-US', { dateStyle: 'long' })} · Rules version ${RULES.version}, last verified ${RULES.verified} · ${PAGE_URL} · Planning estimate only, not tax or legal advice.`;
   $('printAssume').innerHTML = assumptionsTable();
   $('printTables').innerHTML = printTables();
   const img = chartImage();
