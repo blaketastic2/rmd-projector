@@ -21,19 +21,20 @@
   --rmd: #a8650f;         /* amber: anything forced by an RMD */
   --rmd-soft: #f6e8d2;
   --plan: #7f9bb8;        /* planned withdrawals */
+  --one: #2f7d6b;         /* one-time withdrawal */
   --font-body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #0e141a; --surface: #151e27; --ink: #e3e9ef; --muted: #93a1af; --line: #283541;
-    --accent: #7fb0e0; --accent-soft: #1b2c3d; --rmd: #e3a54d; --rmd-soft: #33261a; --plan: #4f6b88;
+    --accent: #7fb0e0; --accent-soft: #1b2c3d; --rmd: #e3a54d; --rmd-soft: #33261a; --plan: #4f6b88; --one: #5bb8a0;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #0e141a; --surface: #151e27; --ink: #e3e9ef; --muted: #93a1af; --line: #283541;
-  --accent: #7fb0e0; --accent-soft: #1b2c3d; --rmd: #e3a54d; --rmd-soft: #33261a; --plan: #4f6b88;
+  --accent: #7fb0e0; --accent-soft: #1b2c3d; --rmd: #e3a54d; --rmd-soft: #33261a; --plan: #4f6b88; --one: #5bb8a0;
   color-scheme: dark;
 }
 
@@ -174,6 +175,17 @@ details summary { cursor: pointer; font-weight: 600; }
           <div class="inbox"><input id="drawGrowth" type="number" min="-99" step="0.1" value="2.5"><span>%</span></div>
         </div>
       </div>
+      <div class="pair">
+        <div class="field">
+          <label for="oneOff">One-time withdrawal</label>
+          <div class="inbox"><span>$</span><input id="oneOff" type="number" min="0" step="1000" value="0"></div>
+        </div>
+        <div class="field">
+          <label for="oneOffYear">In year</label>
+          <div class="inbox"><input id="oneOffYear" type="number" min="1900" max="2150" step="1" value=""></div>
+        </div>
+      </div>
+      <small id="oneOffNote" style="color:var(--muted);font-size:0.78rem;margin-top:-8px">Extra amount for a single year, on top of the plan. It counts toward that year's RMD.</small>
       <div class="field">
         <label for="afterRmd">Once RMDs start, withdraw</label>
         <div class="inbox"><select id="afterRmd">
@@ -223,6 +235,7 @@ details summary { cursor: pointer; font-weight: 600; }
         <div class="sec-head"><h2>Withdrawals and balance by age</h2></div>
         <div class="legend">
           <span><i style="background:var(--plan)"></i>Planned withdrawal</span>
+          <span id="one-legend" hidden><i style="background:var(--one)"></i>One-time withdrawal</span>
           <span><i style="background:var(--rmd)"></i><span id="rmd-legend">Extra required by RMD</span></span>
           <span><i style="background:var(--accent);height:3px;vertical-align:3px"></i>Year-end balance</span>
         </div>
@@ -278,7 +291,7 @@ details summary { cursor: pointer; font-weight: 600; }
 // Bump `version` and add a changelog entry whenever a rule, table or default changes.
 const PAGE_URL = 'https://blaketastic2.github.io/rmd-projector/';
 const RULES = {
-  version: '2026.10.10',
+  version: '2026.10.14',
   verified: 'Oct 10, 2026',
   items: [
     { rule: 'RMD amount', applied: "Each year's RMD is the prior Dec 31 balance divided by the life expectancy factor for the age reached that year.",
@@ -291,6 +304,8 @@ const RULES = {
       status: 'Final regulation', source: ['Treas. Reg. §1.401(a)(9)-9(c); Pub. 590-B Table III', 'https://www.ecfr.gov/current/title-26/section-1.401(a)(9)-9'] },
     { rule: 'Joint and Last Survivor Table', applied: 'Used when the spouse is sole beneficiary for the whole year and more than 10 years younger (exactly 10 uses the Uniform table). Both ages reached that year.',
       status: 'Final regulation', source: ['Treas. Reg. §1.401(a)(9)-9(d); Pub. 590-B Table II', 'https://www.ecfr.gov/current/title-26/section-1.401(a)(9)-9'] },
+    { rule: 'Withdrawals count toward the RMD', applied: "Everything withdrawn in a year, including a one-time withdrawal, counts toward that year's RMD. Only a shortfall is added.",
+      status: 'Final regulation', source: ['Treas. Reg. §1.408-8(g)(1) (IRAs), §1.401(a)(9)-5(g)(2) (plans)', 'https://www.ecfr.gov/current/title-26/section-1.408-8'] },
   ],
   notModeled: [
     'Delaying the first RMD to April 1 of the following year, which puts two RMDs in one tax year. Each RMD is taken in the year it is due.',
@@ -304,9 +319,11 @@ const RULES = {
     'Oct 10, 2026: Schwab RMD calculator, Uniform table (born 1/15/1953, $500,000, 6%, ages 73–120). Every RMD within $0.01.',
     'Oct 10, 2026: Schwab RMD calculator, Joint table (spouse born 6/1/1968, ages 73–113). Every RMD within $0.01.',
     'Oct 10, 2026: Federal Register search found no IRS RMD rule after July 19, 2024, so the 1959 start age is still proposed.',
+    'Oct 14, 2026: eCFR text of Treas. Reg. §1.408-8(g) and §1.401(a)(9)-5(g)(2) for crediting withdrawals toward the RMD.',
     'Table factors parsed from the eCFR text of Treas. Reg. §1.401(a)(9)-9 (version of Sept 17, 2024).',
   ],
   changelog: [
+    ['2026-10-14', 'Added a one-time withdrawal in a chosen year, credited toward that year\'s RMD.'],
     ['2026-10-10', 'Added this rules section, a version stamp, and provenance on copied tables and summaries.'],
     ['2026-10-10', 'Added the Joint and Last Survivor Table for spouse beneficiaries more than 10 years younger.'],
     ['2026-10-10', 'Default withdrawal timing changed to end of year, matching Schwab.'],
@@ -351,7 +368,9 @@ function project(p) {
     const div = d ? d.f : null, joint = !!(d && d.joint);
     const rmd = isRmd ? start / div : 0;
     const planned = age >= p.drawStartAge ? p.draw * Math.pow(1 + g, Math.max(0, age - Math.max(p.drawStartAge, p.startYear - p.birthYear))) : 0;
-    let w = isRmd ? (p.afterRmd === 'greater' ? Math.max(rmd, planned) : rmd) : planned;
+    // A one-time withdrawal comes on top of the plan and counts toward that year's RMD.
+    const oneOff = year === p.oneOffYear ? p.oneOff : 0;
+    let w = isRmd ? (p.afterRmd === 'greater' ? Math.max(rmd, planned + oneOff) : Math.max(rmd, oneOff)) : planned + oneOff;
     let growth, end;
     if (p.timing === 'start') {
       w = Math.min(w, start);
@@ -362,18 +381,19 @@ function project(p) {
       w = Math.min(w, start + growth);
       end = start + growth - w;
     }
-    // forced: amount taken above the plan because of the RMD.
-    const forced = isRmd ? Math.max(0, w - planned) : 0;
-    // Chart split: in RMD-only mode every RMD-year dollar is the RMD; otherwise plan + RMD excess.
-    const barRmd = isRmd ? (p.afterRmd === 'greater' ? forced : w) : 0;
-    rows.push({ year, age, spouseAge, joint, start, div, rmd, planned, w, base: w - barRmd, barRmd, forced, growth, end, isRmd });
+    // forced: amount taken above the plan (including any one-time amount) because of the RMD.
+    const forced = isRmd ? Math.max(0, w - planned - oneOff) : 0;
+    // Chart split: the one-time amount first; then in RMD-only mode the rest is RMD, otherwise plan + RMD excess.
+    const barOne = Math.min(oneOff, w);
+    const barRmd = isRmd ? (p.afterRmd === 'greater' ? forced : w - barOne) : 0;
+    rows.push({ year, age, spouseAge, joint, start, div, rmd, planned, oneOff, w, base: w - barOne - barRmd, barOne, barRmd, forced, growth, end, isRmd });
     bal = Math.max(0, end);
   }
   return rows;
 }
 
 const $ = id => document.getElementById(id);
-const fields = ['birthYear','endAge','balance','rate','draw','drawStartAge','drawGrowth','afterRmd','spouseBen','spouseBirthYear','rmdAge','timing'];
+const fields = ['birthYear','endAge','balance','rate','draw','drawStartAge','drawGrowth','oneOff','oneOffYear','afterRmd','spouseBen','spouseBirthYear','rmdAge','timing'];
 const usd = n => '$' + Math.round(n).toLocaleString('en-US');
 const usdK = n => Math.abs(n) >= 1e6 ? '$' + (n/1e6).toFixed(n >= 1e7 ? 1 : 2) + 'M' : '$' + Math.round(n/1000).toLocaleString('en-US') + 'K';
 const thisYear = new Date().getFullYear();
@@ -397,6 +417,8 @@ function readInputs() {
     draw: Math.max(0, num('draw', 0)),
     drawStartAge: Math.round(num('drawStartAge', 0)),
     drawGrowth: Math.max(-99, num('drawGrowth', 0)),
+    oneOff: Math.max(0, num('oneOff', 0)),
+    oneOffYear: Math.round(num('oneOffYear', NaN)),
     afterRmd: $('afterRmd').value,
     timing: $('timing').value,
     spouseBirthYear: $('spouseBen').value === 'yes' ? Math.min(thisYear, Math.max(1900, Math.round(num('spouseBirthYear', birthYear)))) : null,
@@ -419,11 +441,17 @@ function render() {
     : ` Spouse is not more than 10 years younger, so the Uniform table still applies.`;
   $('rmdAgeNote').textContent = `Born ${p.birthYear}: RMDs start at ${p.autoAge} under current law (year ${p.birthYear + p.autoAge}).` + ($('rmdAge').value !== 'auto' && p.rmdAge !== p.autoAge ? ` Overridden to ${p.rmdAge}.` : '') + tableNote;
 
+  const oneRow = rows.find(x => x.year === p.oneOffYear);
+  $('oneOffNote').textContent = !p.oneOff ? "Extra amount for a single year, on top of the plan. It counts toward that year's RMD."
+    : isNaN(p.oneOffYear) ? 'Enter the year it comes out.'
+    : !oneRow ? `${p.oneOffYear} is outside the projection (${rows[0].year}–${rows[rows.length - 1].year}), so it is not applied.`
+    : `Age ${oneRow.age} in ${oneRow.year}. ${oneRow.isRmd ? `Counts toward the ${usd(oneRow.rmd)} RMD. ` : ''}Total withdrawn that year: ${usd(oneRow.w)}.`;
+
   // Summary
   const first = rows.find(x => x.isRmd);
   const rmdRows = rows.filter(x => x.isRmd);
   const peak = rmdRows.reduce((a, x) => (!a || x.rmd > a.rmd ? x : a), null);
-  const overtake = rmdRows.find(x => x.rmd > x.planned + 0.5);
+  const overtake = rmdRows.find(x => x.rmd > x.planned + x.oneOff + 0.5);
   const totalW = rows.reduce((s, x) => s + x.w, 0);
   const totalForced = rows.reduce((s, x) => s + x.forced, 0);
   const last = rows[rows.length - 1];
@@ -440,12 +468,14 @@ function render() {
   $('tiles').innerHTML = tiles.map(t => `<div class="tile ${t.cls || ''}"><span class="k">${t.k}</span><span class="v">${t.v}</span><span class="s">${t.s}</span></div>`).join('');
 
   // Table
-  const head = '<thead><tr><th>Year</th><th>Age</th><th>Jan 1 balance</th><th>Factor</th><th>RMD</th><th>Planned</th><th>Withdrawn</th><th>Growth</th><th>Dec 31 balance</th></tr></thead>';
+  const hasOne = rows.some(x => x.oneOff > 0);
+  const head = `<thead><tr><th>Year</th><th>Age</th><th>Jan 1 balance</th><th>Factor</th><th>RMD</th><th>Planned</th>${hasOne ? '<th>One-time</th>' : ''}<th>Withdrawn</th><th>Growth</th><th>Dec 31 balance</th></tr></thead>`;
   const body = rows.map(x => `<tr class="${x.forced > 0.5 ? 'forced' : ''} ${x === first && !already ? 'first' : ''}">
     <td>${x.year}</td><td>${x.age}</td><td>${usd(x.start)}</td>
     <td class="${x.div ? '' : 'dim'}">${x.div ? x.div.toFixed(1) + (x.joint ? '<span class="tag">joint</span>' : '') : '—'}</td>
     <td class="${x.isRmd ? '' : 'dim'}">${x.isRmd ? usd(x.rmd) : '—'}</td>
     <td class="${x.planned ? '' : 'dim'}">${x.planned ? usd(x.planned) : '—'}</td>
+    ${hasOne ? `<td class="${x.oneOff ? '' : 'dim'}">${x.oneOff ? usd(x.oneOff) : '—'}</td>` : ''}
     <td class="w">${usd(x.w)}</td><td>${usd(x.growth)}</td><td>${usd(x.end)}</td></tr>`).join('');
   $('tbl').innerHTML = head + '<tbody>' + body + '</tbody>';
 
@@ -462,13 +492,15 @@ const rmdLabel = () => $('afterRmd').value === 'greater' ? 'Extra required by RM
 
 function drawChart(rows) {
   $('rmd-legend').textContent = rmdLabel();
+  $('one-legend').hidden = !rows.some(x => x.barOne > 0);
   if (!window.Chart) return;
-  const c = { plan: cssVar('--plan'), rmd: cssVar('--rmd'), accent: cssVar('--accent'), muted: cssVar('--muted'), line: cssVar('--line'), font: cssVar('--font-body') };
+  const c = { plan: cssVar('--plan'), one: cssVar('--one'), rmd: cssVar('--rmd'), accent: cssVar('--accent'), muted: cssVar('--muted'), line: cssVar('--line'), font: cssVar('--font-body') };
   const data = {
     labels: rows.map(x => x.age),
     datasets: [
       { type: 'line', label: 'Year-end balance', data: rows.map(x => x.end), yAxisID: 'yb', borderColor: c.accent, backgroundColor: c.accent, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: 0.2, order: 0 },
       { type: 'bar', label: 'Planned withdrawal', data: rows.map(x => x.base), yAxisID: 'yw', backgroundColor: c.plan, stack: 'w', order: 1 },
+      { type: 'bar', label: 'One-time withdrawal', data: rows.map(x => x.barOne), yAxisID: 'yw', backgroundColor: c.one, stack: 'w', order: 1 },
       { type: 'bar', label: rmdLabel(), data: rows.map(x => x.barRmd), yAxisID: 'yw', backgroundColor: c.rmd, stack: 'w', order: 1 },
     ],
   };
@@ -477,7 +509,7 @@ function drawChart(rows) {
     interaction: { mode: 'index', intersect: false },
     plugins: {
       legend: { display: false },
-      tooltip: { callbacks: {
+      tooltip: { filter: it => it.dataset.label !== 'One-time withdrawal' || it.parsed.y > 0, callbacks: {
         title: items => `Age ${items[0].label} (${rows[items[0].dataIndex].year})`,
         label: it => `${it.dataset.label}: ${usd(it.parsed.y)}`,
         footer: items => { const x = rows[items[0].dataIndex]; return x.isRmd ? `RMD: ${usd(x.rmd)}  ·  Total out: ${usd(x.w)}` : `Total out: ${usd(x.w)}`; },
@@ -527,6 +559,7 @@ function inputSummary() {
     [`Balance on Jan 1, ${p.startYear}`, usd(p.balance)],
     ['Expected annual return', `${p.rate}%`],
     ['Withdrawal before RMDs', p.draw ? `${usd(p.draw)} a year from age ${p.drawStartAge}, raised ${p.drawGrowth}% a year` : 'None'],
+    ['One-time withdrawal', p.oneOff && !isNaN(p.oneOffYear) ? `${usd(p.oneOff)} in ${p.oneOffYear}, counted toward that year's RMD` : 'None'],
     ['Once RMDs start', p.afterRmd === 'greater' ? 'Larger of the RMD or planned amount' : 'Only the RMD'],
     ['RMD start age', `${p.rmdAge}${$('rmdAge').value === 'auto' ? ' (automatic)' : ' (manual override)'}`],
     ['Withdrawals taken', p.timing === 'end' ? 'End of year' : 'Start of year'],
@@ -551,8 +584,8 @@ function copyText(text, toastId, okMsg) {
 const csvCell = v => /[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v);
 $('copy').addEventListener('click', () => {
   // Table first so the header stays in row 1 for importers; provenance follows below it.
-  const lines = ['Year,Age,Jan 1 balance,Factor,Table,RMD,Planned,Withdrawn,Growth,Dec 31 balance'];
-  lastRows.forEach(x => lines.push([x.year, x.age, x.start.toFixed(2), x.div ? x.div.toFixed(1) : '', x.div ? (x.joint ? 'Joint' : 'Uniform') : '', x.rmd.toFixed(2), x.planned.toFixed(2), x.w.toFixed(2), x.growth.toFixed(2), x.end.toFixed(2)].join(',')));
+  const lines = ['Year,Age,Jan 1 balance,Factor,Table,RMD,Planned,One-time,Withdrawn,Growth,Dec 31 balance'];
+  lastRows.forEach(x => lines.push([x.year, x.age, x.start.toFixed(2), x.div ? x.div.toFixed(1) : '', x.div ? (x.joint ? 'Joint' : 'Uniform') : '', x.rmd.toFixed(2), x.planned.toFixed(2), x.oneOff.toFixed(2), x.w.toFixed(2), x.growth.toFixed(2), x.end.toFixed(2)].join(',')));
   lines.push('', csvCell(stamp()));
   inputSummary().forEach(([k, v]) => lines.push([k, v].map(csvCell).join(',')));
   lines.push(['Not modeled', RULES.notModeled.join(' ')].map(csvCell).join(','));
