@@ -158,27 +158,36 @@ details summary { cursor: pointer; font-weight: 600; }
 
 /* PDF report: the browser's print-to-PDF. The script switches to the light theme and fills the print-only blocks first. */
 @page { size: letter; margin: 0.55in 0.5in; @bottom-right { content: "Page " counter(page) " of " counter(pages); font: 8pt "Public Sans", sans-serif; color: #5b6876; } }
+/* The report is compact on purpose: every table fits the page width at full size. A wider table makes the
+   browser quietly shrink the whole report. Each year-by-year table fits one page up to about 45 years. */
 @media print {
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  body { background: #fff; padding: 0; font-size: 10pt; }
-  .wrap { max-width: none; gap: 14px; }
+  body { background: #fff; padding: 0; font-size: 9pt; line-height: 1.35; }
+  .wrap { max-width: none; gap: 10px; }
   header, form.panel, .report-bar, .no-print, button, .toast, .head-tools, .chart-box,
   #tableSection { display: none !important; }
   .print-only { display: block; }
   .layout { display: block; }
-  .results { gap: 14px; }
-  .panel { border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; break-inside: avoid; }
-  #printHead h1 { font-size: 20pt; font-weight: 800; letter-spacing: -0.02em; margin: 0; }
-  #printHead p { margin: 4px 0 0; color: var(--muted); font-size: 9pt; }
+  .results { gap: 10px; }
+  .panel { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; break-inside: avoid; }
+  #printHead h1 { font-size: 18pt; font-weight: 800; letter-spacing: -0.02em; margin: 0; }
+  #printHead p { margin: 3px 0 0; color: var(--muted); font-size: 8pt; }
+  #printAssume th, #printAssume td { font-size: 8pt; padding: 1.5px 8px 1.5px 0; }
   .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); break-inside: avoid; }
-  .tile { padding: 8px 10px; }
-  .tile .v { font-size: 14pt; }
+  .tile { padding: 6px 10px; gap: 0; }
+  .tile .k { font-size: 6.5pt; }
+  .tile .v { font-size: 13pt; }
+  .tile .s { font-size: 7.5pt; }
   #chartImg { width: 100%; height: auto; }
+  #chartTitle { font-size: 12pt; }
+  .legend { font-size: 8pt; gap: 12px; margin-bottom: 6px; }
+  .legend i { width: 9px; height: 9px; margin-right: 4px; }
   #printTables section { break-before: page; }
-  #printTables h2 { font-size: 12pt; margin: 0 0 8px; }
-  table { font-size: 8pt; }
-  th, td { padding: 3px 6px; }
-  th { position: static; }
+  #printTables h2 { font-size: 12pt; margin: 0 0 6px; }
+  table { font-size: 7.5pt; line-height: 1.25; }
+  th, td { padding: 2px 5px; }
+  th { position: static; white-space: normal; vertical-align: bottom; font-size: 6.5pt; }
+  .who { font-size: 6pt; }
   thead { display: table-header-group; }
   tr { break-inside: avoid; }
   #rules { break-before: page; break-inside: auto; }
