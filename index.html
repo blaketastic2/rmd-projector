@@ -80,8 +80,13 @@ form.couple .person { border: 1px solid var(--line); border-left: 4px solid var(
 form.couple .person > .hr { display: none; }
 .person-head { display: flex; align-items: center; gap: 8px; margin: 0; font-weight: 700; font-size: 1rem; }
 .person-head::before, .sp::before { content: ''; flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--sp); }
-.sp { white-space: nowrap; }
-.sp::before { display: inline-block; width: 8px; height: 8px; margin-right: 5px; vertical-align: 1px; }
+/* inline-flex keeps the dot beside the name when a long name wraps. */
+.sp { display: inline-flex; align-items: center; gap: 5px; }
+.sp::before { width: 8px; height: 8px; }
+.sp > span { min-width: 0; }
+/* In table headers and row tags a long name is cut short; the full name heads that spouse's own table. */
+th .sp, .who .sp { max-width: 11ch; }
+th .sp > span, .who .sp > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .note { color: var(--muted); font-size: 0.78rem; }
 /* Bottom-align paired fields so their boxes line up when one label wraps. */
 .pair > .field { align-content: end; }
@@ -575,9 +580,10 @@ function readInputs() {
   // Both stop in the same year, so household totals never drop a spouse's balance:
   // when the younger reaches the end age, or the older reaches 120 if that comes first.
   const lastYear = Math.min(Math.max(a.birthYear, b.birthYear) + endAge, Math.min(a.birthYear, b.birthYear) + 120);
-  // A name replaces "Spouse 1"/"Spouse 2"; the same name twice keeps the spouse number so the two stay apart.
-  const same = a.name && a.name.toLowerCase() === b.name.toLowerCase();
-  const label = (p, n) => !p.name ? `Spouse ${n}` : same ? `${p.name} (Spouse ${n})` : p.name;
+  // A name replaces "Spouse 1"/"Spouse 2"; if the two would read the same, each keeps its spouse number.
+  const base = (p, n) => p.name || `Spouse ${n}`;
+  const same = base(a, 1).toLowerCase() === base(b, 2).toLowerCase();
+  const label = (p, n) => same ? `${base(p, n)} (Spouse ${n})` : base(p, n);
   const people = [[a, b, '', label(a, 1), 1], [b, a, 'b_', label(b, 2), 2]].map(([p, other, pfx, label, n]) => ({ ...shared, ...p, pfx, label, n,
     endAge: Math.max(thisYear - p.birthYear, lastYear - p.birthYear),
     spouseBirthYear: spouseBen ? other.birthYear : null }));
@@ -634,7 +640,7 @@ function personTiles(p, rows) {
 }
 
 // A spouse's name with their color dot, escaped for HTML.
-const tag = p => `<span class="sp s${p.n}">${esc(p.label)}</span>`;
+const tag = p => `<span class="sp s${p.n}" title="${esc(p.label)}"><span>${esc(p.label)}</span></span>`;
 
 function householdTiles(runs, hrows) {
   const onRmd = h => runs.map((r, i) => h.parts[i] && h.parts[i].isRmd ? `${tag(r.p)} at ${h.parts[i].age}` : '').filter(Boolean).join(', ');
