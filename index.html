@@ -554,6 +554,15 @@ const PERSON_FIELDS = ['name','birthYear','rmdAge','balance','rate','draw','draw
   $('b_nameField').querySelector('small').textContent = 'Shown in place of "Spouse 2" on the page, in the tables and in the PDF.';
   Object.entries({ birthYear: 1961, balance: 450000, draw: 0 }).forEach(([k, v]) => $('b_' + k).value = v);
 })();
+// Password managers ignore autocomplete="off" and offer to fill "Birth year" and "Name" from saved identities.
+// These are each one's own opt-out: 1Password, LastPass, Bitwarden, Dashlane.
+document.querySelectorAll('input, select').forEach(e => {
+  e.autocomplete = 'off';
+  e.setAttribute('data-1p-ignore', '');
+  e.setAttribute('data-lpignore', 'true');
+  e.setAttribute('data-bwignore', '');
+  e.setAttribute('data-form-type', 'other');
+});
 const fields = ['household','endAge','afterRmd','spouseBen','spouseBirthYear','timing', ...PERSON_FIELDS, ...PERSON_FIELDS.map(k => 'b_' + k)];
 const usd = n => '$' + Math.round(n).toLocaleString('en-US');
 const usdK = n => Math.abs(n) >= 1e6 ? '$' + (n/1e6).toFixed(n >= 1e7 ? 1 : 2) + 'M' : '$' + Math.round(n/1000).toLocaleString('en-US') + 'K';
