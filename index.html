@@ -547,6 +547,14 @@ function renderRules() {
   $('changelog').innerHTML = RULES.changelog.map(([d, t]) => `<li><time datetime="${d}">${d}</time><span>${esc(t)}</span></li>`).join('');
 }
 
+// Describe the one-time withdrawal as the projection actually applied it.
+function oneOffSummary(p, usd) {
+  if (!p.oneOff || isNaN(p.oneOffYear)) return 'None';
+  const row = project(p).find(x => x.year === p.oneOffYear);
+  if (!row) return `${usd(p.oneOff)} in ${p.oneOffYear}, outside the projection, so not applied`;
+  return `${usd(p.oneOff)} in ${p.oneOffYear} (age ${row.age}), ` + (row.isRmd ? "counted toward that year's RMD" : 'before RMDs start');
+}
+
 function inputSummary() {
   const p = readInputs();
   // Decided from the ages, not from projected rows, so it holds even when RMD years fall outside the projection.
@@ -559,7 +567,7 @@ function inputSummary() {
     [`Balance on Jan 1, ${p.startYear}`, usd(p.balance)],
     ['Expected annual return', `${p.rate}%`],
     ['Withdrawal before RMDs', p.draw ? `${usd(p.draw)} a year from age ${p.drawStartAge}, raised ${p.drawGrowth}% a year` : 'None'],
-    ['One-time withdrawal', p.oneOff && !isNaN(p.oneOffYear) ? `${usd(p.oneOff)} in ${p.oneOffYear}, counted toward that year's RMD` : 'None'],
+    ['One-time withdrawal', oneOffSummary(p, usd)],
     ['Once RMDs start', p.afterRmd === 'greater' ? 'Larger of the RMD or planned amount' : 'Only the RMD'],
     ['RMD start age', `${p.rmdAge}${$('rmdAge').value === 'auto' ? ' (automatic)' : ' (manual override)'}`],
     ['Withdrawals taken', p.timing === 'end' ? 'End of year' : 'Start of year'],
