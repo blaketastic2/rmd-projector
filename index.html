@@ -549,7 +549,8 @@ function renderRules() {
 
 // Describe the one-time withdrawal as the projection actually applied it.
 function oneOffSummary(p, usd) {
-  if (!p.oneOff || isNaN(p.oneOffYear)) return 'None';
+  if (!p.oneOff) return 'None';
+  if (isNaN(p.oneOffYear)) return `${usd(p.oneOff)} with no year entered, so not applied`;
   const row = project(p).find(x => x.year === p.oneOffYear);
   if (!row) return `${usd(p.oneOff)} in ${p.oneOffYear}, outside the projection, so not applied`;
   return `${usd(p.oneOff)} in ${p.oneOffYear} (age ${row.age}), ` + (row.isRmd ? "counted toward that year's RMD" : 'before RMDs start');
