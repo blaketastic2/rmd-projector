@@ -7,3 +7,7 @@ Single-page calculator that projects required minimum distributions (RMDs) from 
 - Planning estimate only; not tax advice.
 
 Open `index.html` in a browser, or visit the GitHub Pages site.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
