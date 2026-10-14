@@ -159,7 +159,7 @@ details summary { cursor: pointer; font-weight: 600; }
           <div class="inbox"><input id="endAge" type="number" min="60" max="120" step="1" value="100"></div>
         </div>
       </div>
-      <small class="note" id="endAgeNote" hidden>Both are projected until the younger spouse reaches this age.</small>
+      <small class="note" id="endAgeNote" hidden>Both are projected until the younger spouse reaches this age, or the older reaches 120 if that comes first.</small>
 
       <!-- One person's inputs. The script clones this block for the second spouse, prefixing every id with "b_". -->
       <div class="person" id="personA">
@@ -484,10 +484,11 @@ function readInputs() {
       spouseBirthYear: spouseBen ? yearIn('spouseBirthYear', a.birthYear) : null }] };
   }
   const b = readPerson('b_');
-  // Both run until the younger spouse reaches the end age; the older one stops at 120.
-  const lastYear = Math.max(a.birthYear, b.birthYear) + endAge;
+  // Both stop in the same year, so household totals never drop a spouse's balance:
+  // when the younger reaches the end age, or the older reaches 120 if that comes first.
+  const lastYear = Math.min(Math.max(a.birthYear, b.birthYear) + endAge, Math.min(a.birthYear, b.birthYear) + 120);
   const people = [[a, b, '', 'Spouse 1'], [b, a, 'b_', 'Spouse 2']].map(([p, other, pfx, label]) => ({ ...shared, ...p, pfx, label,
-    endAge: Math.max(thisYear - p.birthYear, Math.min(120, lastYear - p.birthYear)),
+    endAge: Math.max(thisYear - p.birthYear, lastYear - p.birthYear),
     spouseBirthYear: spouseBen ? other.birthYear : null }));
   return { household, people };
 }
@@ -599,7 +600,7 @@ function render() {
   const hrows = household ? combine(runs.map(r => r.rows)) : null;
   last = { runs, hrows };
 
-  $('personB').hidden = $('personLabel').hidden = $('endAgeNote').hidden = $('viewBox').hidden = !household;
+  $('personB').hidden = $('personLabel').hidden = $('b_personLabel').hidden = $('endAgeNote').hidden = $('viewBox').hidden = !household;
   $('spouseYearField').hidden = household || $('spouseBen').value !== 'yes';
   $('spouseBenLabel').textContent = household ? "Each is the other's sole beneficiary" : 'Spouse is sole beneficiary';
   runs.forEach(r => personNotes(r.p, r.rows));
