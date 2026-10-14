@@ -865,8 +865,8 @@ $('copy').addEventListener('click', () => {
   const personLines = rows => rows.map(x => [x.year, x.age, x.start.toFixed(2), x.div ? x.div.toFixed(1) : '', x.div ? (x.joint ? 'Joint' : 'Uniform') : '', x.rmd.toFixed(2), x.planned.toFixed(2), x.oneOff.toFixed(2), x.w.toFixed(2), x.growth.toFixed(2), x.end.toFixed(2)].join(','));
   const lines = [];
   if (hrows) {
-    const L = runs.map(r => csvCell(r.p.label));
-    lines.push(['Year', ...L.map(l => `${l} age`), 'Household Jan 1 balance', ...L.map(l => `${l} RMD`), 'Household RMD', 'Household withdrawn', 'Household Dec 31 balance'].join(','));
+    const L = runs.map(r => r.p.label);
+    lines.push(['Year', ...L.map(l => `${l} age`), 'Household Jan 1 balance', ...L.map(l => `${l} RMD`), 'Household RMD', 'Household withdrawn', 'Household Dec 31 balance'].map(csvCell).join(','));
     hrows.forEach(h => lines.push([h.year, ...h.parts.map(y => y ? y.age : ''), h.start.toFixed(2), ...h.parts.map(y => y ? y.rmd.toFixed(2) : ''), h.rmd.toFixed(2), h.w.toFixed(2), h.end.toFixed(2)].join(',')));
     runs.forEach(r => lines.push('', csvCell(r.p.label), PERSON_HEAD, ...personLines(r.rows)));
   } else {
