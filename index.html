@@ -75,7 +75,7 @@ form.panel, .field, .person { grid-template-columns: minmax(0, 1fr); min-width: 
 .hr { height: 1px; background: var(--line); margin: 2px 0; }
 .chip { display: inline-block; font-size: 0.78rem; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); }
 
-.results { display: grid; gap: 20px; min-width: 0; }
+.results { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; min-width: 0; }
 .tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
 @media (max-width: 560px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .tile { background: var(--surface); padding: 14px 16px; display: grid; gap: 2px; align-content: start; }
@@ -133,10 +133,63 @@ details summary { cursor: pointer; font-weight: 600; }
 .notes { color: var(--muted); font-size: 0.85rem; display: grid; gap: 6px; margin: 0; padding-left: 18px; }
 .notes a { color: var(--accent); }
 .toast { font-size: 0.8rem; color: var(--muted); margin-left: 8px; }
+.report-bar { display: flex; align-items: end; gap: 12px; padding: 14px 16px; }
+.report-bar .field { flex: 1; }
+.report-bar button { height: 38px; white-space: nowrap; }
+.print-only { display: none; }
+
+/* PDF report: the browser's print-to-PDF. The script switches to the light theme and fills the print-only blocks first. */
+@page { size: letter; margin: 0.55in 0.5in; @bottom-right { content: "Page " counter(page) " of " counter(pages); font: 8pt "Public Sans", sans-serif; color: #5b6876; } }
+@media print {
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { background: #fff; padding: 0; font-size: 10pt; }
+  .wrap { max-width: none; gap: 14px; }
+  header, form.panel, .report-bar, .no-print, button, .toast, .head-tools, .chart-box,
+  #tableSection { display: none !important; }
+  .print-only { display: block; }
+  .layout { display: block; }
+  .results { gap: 14px; }
+  .panel { border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; break-inside: avoid; }
+  #printHead h1 { font-size: 20pt; font-weight: 800; letter-spacing: -0.02em; margin: 0; }
+  #printHead p { margin: 4px 0 0; color: var(--muted); font-size: 9pt; }
+  .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); break-inside: avoid; }
+  .tile { padding: 8px 10px; }
+  .tile .v { font-size: 14pt; }
+  #chartImg { width: 100%; height: auto; }
+  #printTables section { break-before: page; }
+  #printTables h2 { font-size: 12pt; margin: 0 0 8px; }
+  table { font-size: 8pt; }
+  th, td { padding: 3px 6px; }
+  th { position: static; }
+  thead { display: table-header-group; }
+  tr { break-inside: avoid; }
+  #rules { break-before: page; break-inside: auto; }
+  .rules-table { table-layout: fixed; font-size: 7.5pt; }
+  .rules-table th:nth-child(1) { width: 20%; } .rules-table th:nth-child(2) { width: 39%; }
+  .rules-table th:nth-child(3) { width: 18%; } .rules-table th:nth-child(4) { width: 23%; }
+  .rules-table .status { font-size: 7pt; }
+  .rules-table td:first-child { white-space: normal; }
+  .rules-table td:nth-child(2), .rules-table td:nth-child(4) { min-width: 0; }
+  .rules-meta { font-size: 8.5pt; }
+  .notes { font-size: 8.5pt; gap: 2px; }
+  a { color: inherit; text-decoration: none; }
+}
+table.assume { width: 100%; font-size: 9pt; }
+table.assume th, table.assume td { text-align: left; white-space: normal; padding: 3px 8px 3px 0; vertical-align: top; }
+table.assume th { position: static; text-transform: none; letter-spacing: 0; font-size: 9pt; }
+table.assume td:first-child { color: var(--muted); width: 32%; }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 </style>
 
 <div class="wrap">
+  <!-- Print only: the report's own header and assumptions, filled in just before printing. -->
+  <div class="print-only" id="printHead">
+    <h1 id="printTitle"></h1>
+    <p id="printSub"></p>
+    <p class="eyebrow" style="margin-top:14px">Assumptions</p>
+    <table class="assume" id="printAssume"></table>
+  </div>
+
   <header>
     <h1>RMD Projector</h1>
     <p>Project required minimum distributions from a traditional IRA or 401(k), including the withdrawals you take before RMD age. Uses the IRS Uniform Lifetime and Joint Life tables (2022 and later) and SECURE 2.0 start ages.</p>
@@ -251,6 +304,13 @@ details summary { cursor: pointer; font-weight: 600; }
     </form>
 
     <div class="results">
+      <div class="panel report-bar">
+        <div class="field">
+          <label for="reportTitle">Report title</label>
+          <div class="inbox"><input id="reportTitle" type="text" maxlength="120" placeholder="RMD projection"></div>
+        </div>
+        <button type="button" id="pdf">Save as PDF</button>
+      </div>
       <div class="tiles" id="tiles"></div>
 
       <section class="panel">
@@ -262,9 +322,10 @@ details summary { cursor: pointer; font-weight: 600; }
           <span><i style="background:var(--accent);height:3px;vertical-align:3px"></i>Year-end balance</span>
         </div>
         <div class="chart-box"><canvas id="chart" aria-label="Chart of annual withdrawals and account balance by age" role="img"></canvas></div>
+        <img class="print-only" id="chartImg" alt="Chart of annual withdrawals and account balance">
       </section>
 
-      <section class="panel">
+      <section class="panel" id="tableSection">
         <div class="sec-head">
           <h2>Year-by-year projection</h2>
           <div class="head-tools">
@@ -278,7 +339,10 @@ details summary { cursor: pointer; font-weight: 600; }
         <div class="table-wrap scroll"><table id="tbl"></table></div>
       </section>
 
-      <section class="panel">
+      <!-- Print only: every table for the report (household and each spouse), filled in just before printing. -->
+      <div class="print-only" id="printTables"></div>
+
+      <section class="panel no-print">
         <details>
           <summary>IRS life expectancy tables</summary>
           <p style="color:var(--muted);font-size:0.85rem;margin:10px 0 0">RMD = prior Dec 31 balance ÷ distribution period for the age reached this year. Highlighted factors are the ones this projection uses.</p>
@@ -305,8 +369,10 @@ details summary { cursor: pointer; font-weight: 600; }
         <p class="eyebrow" style="margin-top:18px">Checked against</p>
         <ul class="notes" id="checks"></ul>
 
-        <p class="eyebrow" style="margin-top:18px">Changelog</p>
-        <ul class="changelog" id="changelog"></ul>
+        <div class="no-print">
+          <p class="eyebrow" style="margin-top:18px">Changelog</p>
+          <ul class="changelog" id="changelog"></ul>
+        </div>
 
         <p class="rules-meta" style="margin-top:16px">Planning estimate only, not tax or legal advice. Confirm each year's RMD with the account custodian.</p>
       </section>
@@ -319,7 +385,7 @@ details summary { cursor: pointer; font-weight: 600; }
 // Bump `version` and add a changelog entry whenever a rule, table or default changes.
 const PAGE_URL = 'https://blaketastic2.github.io/rmd-projector/';
 const RULES = {
-  version: '2026.10.14.2',
+  version: '2026.10.14.3',
   verified: 'Oct 10, 2026',
   items: [
     { rule: 'RMD amount', applied: "Each year's RMD is the prior Dec 31 balance divided by the life expectancy factor for the age reached that year.",
@@ -355,6 +421,7 @@ const RULES = {
     'Table factors parsed from the eCFR text of Treas. Reg. §1.401(a)(9)-9 (version of Sept 17, 2024).',
   ],
   changelog: [
+    ['2026-10-14', 'Added a PDF report with a custom title: assumptions, summary, chart, every table and these rules.'],
     ['2026-10-14', 'Added a household view: both spouses projected on their own accounts, then summed by year.'],
     ['2026-10-14', 'Added a one-time withdrawal in a chosen year, credited toward that year\'s RMD.'],
     ['2026-10-10', 'Added this rules section, a version stamp, and provenance on copied tables and summaries.'],
@@ -439,7 +506,7 @@ const PERSON_FIELDS = ['birthYear','rmdAge','balance','rate','draw','drawStartAg
   $('b_personLabel').textContent = 'Spouse 2';
   Object.entries({ birthYear: 1961, balance: 450000, draw: 0 }).forEach(([k, v]) => $('b_' + k).value = v);
 })();
-const fields = ['household','endAge','afterRmd','spouseBen','spouseBirthYear','timing', ...PERSON_FIELDS, ...PERSON_FIELDS.map(k => 'b_' + k)];
+const fields = ['reportTitle','household','endAge','afterRmd','spouseBen','spouseBirthYear','timing', ...PERSON_FIELDS, ...PERSON_FIELDS.map(k => 'b_' + k)];
 const usd = n => '$' + Math.round(n).toLocaleString('en-US');
 const usdK = n => Math.abs(n) >= 1e6 ? '$' + (n/1e6).toFixed(n >= 1e7 ? 1 : 2) + 'M' : '$' + Math.round(n/1000).toLocaleString('en-US') + 'K';
 const thisYear = new Date().getFullYear();
@@ -665,11 +732,13 @@ function drawChart() {
 $('view').addEventListener('change', render);
 
 // Save only after the viewer edits, so untouched example values stay marked as examples.
+const saveInputs = () => { try { const o = {}; fields.forEach(k => o[k] = $(k).value); localStorage.setItem(STORE, JSON.stringify(o)); } catch (e) {} };
 $('f').addEventListener('input', () => {
   $('example-chip').hidden = true;
   render();
-  try { const o = {}; fields.forEach(k => o[k] = $(k).value); localStorage.setItem(STORE, JSON.stringify(o)); } catch (e) {}
+  saveInputs();
 });
+$('reportTitle').addEventListener('input', saveInputs);
 $('f').addEventListener('submit', e => e.preventDefault());
 
 // Render the rules section from RULES so the page and copied text never disagree.
@@ -701,7 +770,7 @@ function personSummary(p, pre) {
   const usd = n => '$' + n.toLocaleString('en-US', { maximumFractionDigits: 2 });
   return [
     ['Birth year', p.birthYear],
-    ...(pre ? [] : [['Spouse sole beneficiary', p.spouseBirthYear == null ? 'No' : `Yes, born ${p.spouseBirthYear}`]]),
+    ...(p.label ? [] : [['Spouse sole beneficiary', p.spouseBirthYear == null ? 'No' : `Yes, born ${p.spouseBirthYear}`]]),
     ['Life expectancy table', joint ? 'Joint and Last Survivor' : 'Uniform Lifetime'],
     [`Balance on Jan 1, ${p.startYear}`, usd(p.balance)],
     ['Expected annual return', `${p.rate}%`],
@@ -772,6 +841,57 @@ $('copyRules').addEventListener('click', () => {
   out.push('', 'Planning estimate only, not tax or legal advice. Confirm each RMD with the account custodian.');
   copyText(out.join('\n'), 'rulesToast', 'Copied. Paste into your notes or client file.');
 });
+
+// PDF report: the browser's print-to-PDF with the print stylesheet. Runs for the button and for Cmd/Ctrl+P alike.
+function assumptionsTable() {
+  const { household, people } = readInputs();
+  const row = cells => `<tr>${cells.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`;
+  if (!household) return '<tbody>' + inputSummary().map(row).join('') + '</tbody>';
+  // Side by side for a couple: one column per spouse, then the settings they share.
+  const per = people.map(p => personSummary(p, ''));
+  const shared = inputSummary().filter(([k]) => !people.some(p => k.startsWith(p.label + ': ')));
+  return `<thead><tr><th></th>${people.map(p => `<th>${esc(p.label)}</th>`).join('')}</tr></thead><tbody>` +
+    per[0].map(([k], i) => row([k, ...per.map(s => s[i][1])])).join('') +
+    shared.map(([k, v]) => `<tr><td>${esc(k)}</td><td colspan="${people.length}">${esc(v)}</td></tr>`).join('') + '</tbody>';
+}
+
+function printTables() {
+  const { runs, hrows } = last;
+  const sec = (title, html) => `<section><h2>${esc(title)}</h2><table>${html}</table></section>`;
+  if (!hrows) return sec('Year-by-year projection', personTable(runs[0].p, runs[0].rows));
+  return sec('Household, year by year', householdTable(runs, hrows)) +
+    runs.map(r => sec(`${r.p.label}, year by year`, personTable(r.p, r.rows))).join('');
+}
+
+let printState = null;
+function preparePrint() {
+  if (printState) return;
+  const root = document.documentElement;
+  printState = { theme: root.getAttribute('data-theme'), title: document.title };
+  root.setAttribute('data-theme', 'light');  // Paper is white even when the screen is dark.
+  const title = $('reportTitle').value.trim() || 'RMD projection';
+  document.title = title;  // Browsers suggest this as the PDF's file name.
+  $('printTitle').textContent = title;
+  const { household } = readInputs();
+  $('printSub').textContent = `Required minimum distribution projection${household ? ' for a married couple' : ''} · Prepared ${new Date().toLocaleDateString('en-US', { dateStyle: 'long' })} · Rules version ${RULES.version}, last verified ${RULES.verified} · ${PAGE_URL} · Planning estimate only, not tax or legal advice.`;
+  $('printAssume').innerHTML = assumptionsTable();
+  $('printTables').innerHTML = printTables();
+  drawChart();
+  // A canvas resizes unreliably in print, so the report carries a picture of it instead.
+  $('chartImg').hidden = !chart;
+  if (chart) $('chartImg').src = chart.toBase64Image();
+}
+function restoreAfterPrint() {
+  if (!printState) return;
+  const root = document.documentElement;
+  if (printState.theme == null) root.removeAttribute('data-theme'); else root.setAttribute('data-theme', printState.theme);
+  document.title = printState.title;
+  printState = null;
+  drawChart();
+}
+addEventListener('beforeprint', preparePrint);
+addEventListener('afterprint', restoreAfterPrint);
+$('pdf').addEventListener('click', () => { preparePrint(); window.print(); });
 
 // Redraw chart colors when the theme changes.
 const redraw = () => drawChart();
