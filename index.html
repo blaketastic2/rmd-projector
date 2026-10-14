@@ -381,6 +381,8 @@ table.assume td:first-child { color: var(--muted); width: 32%; }
 </div>
 
 <script>
+// ---- calculation: begin ----
+// Everything down to "calculation: end" is plain JavaScript with no page access, so test/ can run it in Node.
 // Rules this page applies, shown on the page and stamped onto anything copied out of it.
 // Bump `version` and add a changelog entry whenever a rule, table or default changes.
 const PAGE_URL = 'https://blaketastic2.github.io/rmd-projector/';
@@ -492,6 +494,19 @@ function project(p) {
   return rows;
 }
 
+// Sum the spouses' projections by calendar year. Each RMD is still figured on its owner's account alone.
+const SUMMED = ['start','rmd','planned','oneOff','w','base','barOne','barRmd','forced','growth','end'];
+function combine(projections) {
+  const years = [...new Set(projections.flat().map(x => x.year))].sort((a, b) => a - b);
+  return years.map(year => {
+    const parts = projections.map(rows => rows.find(x => x.year === year) || null);
+    const h = { year, parts, isRmd: parts.some(x => x && x.isRmd) };
+    SUMMED.forEach(k => h[k] = parts.reduce((s, x) => s + (x ? x[k] : 0), 0));
+    return h;
+  });
+}
+// ---- calculation: end ----
+
 const $ = id => document.getElementById(id);
 
 // The second spouse's inputs are a clone of the first's, with every id prefixed "b_".
@@ -558,18 +573,6 @@ function readInputs() {
     endAge: Math.max(thisYear - p.birthYear, lastYear - p.birthYear),
     spouseBirthYear: spouseBen ? other.birthYear : null }));
   return { household, people };
-}
-
-// Sum the spouses' projections by calendar year. Each RMD is still figured on its owner's account alone.
-const SUMMED = ['start','rmd','planned','oneOff','w','base','barOne','barRmd','forced','growth','end'];
-function combine(projections) {
-  const years = [...new Set(projections.flat().map(x => x.year))].sort((a, b) => a - b);
-  return years.map(year => {
-    const parts = projections.map(rows => rows.find(x => x.year === year) || null);
-    const h = { year, parts, isRmd: parts.some(x => x && x.isRmd) };
-    SUMMED.forEach(k => h[k] = parts.reduce((s, x) => s + (x ? x[k] : 0), 0));
-    return h;
-  });
 }
 
 let chart, last = { runs: [], hrows: null };
