@@ -506,7 +506,7 @@ const PERSON_FIELDS = ['birthYear','rmdAge','balance','rate','draw','drawStartAg
   $('b_personLabel').textContent = 'Spouse 2';
   Object.entries({ birthYear: 1961, balance: 450000, draw: 0 }).forEach(([k, v]) => $('b_' + k).value = v);
 })();
-const fields = ['reportTitle','household','endAge','afterRmd','spouseBen','spouseBirthYear','timing', ...PERSON_FIELDS, ...PERSON_FIELDS.map(k => 'b_' + k)];
+const fields = ['household','endAge','afterRmd','spouseBen','spouseBirthYear','timing', ...PERSON_FIELDS, ...PERSON_FIELDS.map(k => 'b_' + k)];
 const usd = n => '$' + Math.round(n).toLocaleString('en-US');
 const usdK = n => Math.abs(n) >= 1e6 ? '$' + (n/1e6).toFixed(n >= 1e7 ? 1 : 2) + 'M' : '$' + Math.round(n/1000).toLocaleString('en-US') + 'K';
 const thisYear = new Date().getFullYear();
@@ -690,13 +690,31 @@ function render() {
 
 const rmdLabel = () => $('afterRmd').value === 'greater' ? 'Extra required by RMD' : 'RMD';
 
+const chartRows = () => last.hrows || (last.runs[0] ? last.runs[0].rows : []);
+
 function drawChart() {
-  const household = !!last.hrows;
-  const rows = household ? last.hrows : (last.runs[0] ? last.runs[0].rows : []);
+  const household = !!last.hrows, rows = chartRows();
   $('chartTitle').textContent = household ? 'Household withdrawals and balance by year' : 'Withdrawals and balance by age';
   $('rmd-legend').textContent = rmdLabel();
   $('one-legend').hidden = !rows.some(x => x.barOne > 0);
   if (!window.Chart) return;
+  if (chart) chart.destroy();
+  chart = new Chart($('chart'), chartConfig(rows, household));
+}
+
+// The report's chart: drawn offscreen at a fixed size, so it never depends on the screen layout or print timing.
+function chartImage() {
+  if (!window.Chart) return '';
+  const cfg = chartConfig(chartRows(), !!last.hrows);
+  cfg.options = { ...cfg.options, responsive: false, devicePixelRatio: 3 };
+  const canvas = document.createElement('canvas');
+  canvas.width = 960; canvas.height = 340;
+  const c = new Chart(canvas, cfg), url = c.toBase64Image();
+  c.destroy();
+  return url;
+}
+
+function chartConfig(rows, household) {
   const c = { plan: cssVar('--plan'), one: cssVar('--one'), rmd: cssVar('--rmd'), accent: cssVar('--accent'), muted: cssVar('--muted'), line: cssVar('--line'), font: cssVar('--font-body') };
   const ages = x => x.parts.map(y => y ? y.age : '—').join(' / ');
   const data = {
@@ -725,8 +743,7 @@ function drawChart() {
       yb: { position: 'right', beginAtZero: true, grid: { display: false }, ticks: { color: c.muted, callback: v => usdK(v) }, title: { display: true, text: 'Balance', color: c.muted } },
     },
   };
-  if (chart) chart.destroy();
-  chart = new Chart($('chart'), { data, options });
+  return { data, options };
 }
 
 $('view').addEventListener('change', render);
@@ -738,7 +755,10 @@ $('f').addEventListener('input', () => {
   render();
   saveInputs();
 });
-$('reportTitle').addEventListener('input', saveInputs);
+// The title is stored on its own, so typing one never marks the example numbers as the viewer's own.
+const TITLE_STORE = 'rmd-projector-title';
+try { $('reportTitle').value = localStorage.getItem(TITLE_STORE) || ''; } catch (e) {}
+$('reportTitle').addEventListener('input', () => { try { localStorage.setItem(TITLE_STORE, $('reportTitle').value); } catch (e) {} });
 $('f').addEventListener('submit', e => e.preventDefault());
 
 // Render the rules section from RULES so the page and copied text never disagree.
@@ -876,10 +896,9 @@ function preparePrint() {
   $('printSub').textContent = `Required minimum distribution projection${household ? ' for a married couple' : ''} · Prepared ${new Date().toLocaleDateString('en-US', { dateStyle: 'long' })} · Rules version ${RULES.version}, last verified ${RULES.verified} · ${PAGE_URL} · Planning estimate only, not tax or legal advice.`;
   $('printAssume').innerHTML = assumptionsTable();
   $('printTables').innerHTML = printTables();
-  drawChart();
-  // A canvas resizes unreliably in print, so the report carries a picture of it instead.
-  $('chartImg').hidden = !chart;
-  if (chart) $('chartImg').src = chart.toBase64Image();
+  const img = chartImage();
+  $('chartImg').hidden = !img;
+  if (img) $('chartImg').src = img;
 }
 function restoreAfterPrint() {
   if (!printState) return;
@@ -887,7 +906,6 @@ function restoreAfterPrint() {
   if (printState.theme == null) root.removeAttribute('data-theme'); else root.setAttribute('data-theme', printState.theme);
   document.title = printState.title;
   printState = null;
-  drawChart();
 }
 addEventListener('beforeprint', preparePrint);
 addEventListener('afterprint', restoreAfterPrint);
